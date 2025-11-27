@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { ShoppingCart, Loader2, Phone, MapPin, Plus } from 'lucide-react'
+import { ShoppingCart, Loader2, X } from 'lucide-react'
 import { useCart } from '@/lib/cart-context'
 import { CartItem } from './cart-item'
 import { CheckoutDialog } from '../checkout/checkout-dialog'
@@ -24,6 +25,7 @@ export function FloatingCart() {
   const [isOpen, setIsOpen] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [selectedLocationId, setSelectedLocationId] = useState<string>('')
+  const [phoneInput, setPhoneInput] = useState('')
   const locale = useLocale() as 'ar' | 'en'
   const searchParams = useSearchParams()
   const phoneFromUrl = searchParams.get('phone')
@@ -33,11 +35,12 @@ export function FloatingCart() {
     queryFn: () => getStoreSettings(locale),
   })
 
-  // Fetch customer data if phone is in URL
+  // Fetch customer data based on phone input or URL
+  const phoneToSearch = phoneInput || phoneFromUrl
   const { data: customerData, isLoading: isLoadingCustomer } = useQuery({
-    queryKey: ['customer-from-url', phoneFromUrl],
-    queryFn: () => getCustomerByPhone(phoneFromUrl!),
-    enabled: !!phoneFromUrl && phoneFromUrl.length >= 8,
+    queryKey: ['customer-from-phone', phoneToSearch],
+    queryFn: () => getCustomerByPhone(phoneToSearch!),
+    enabled: !!phoneToSearch && phoneToSearch.length >= 8,
   })
 
   const customer = customerData?.customer
@@ -72,6 +75,7 @@ export function FloatingCart() {
       clearCart()
       setIsOpen(false)
       setSelectedLocationId('')
+      setPhoneInput('')
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Order creation failed')
@@ -80,13 +84,14 @@ export function FloatingCart() {
 
   const deliveryFee = settingsData?.settings?.deliveryFee || 0
   const currency = settingsData?.settings?.currency || 'KWD'
+  const tax = subtotal * 0.1 // 10% tax
   const total = subtotal + deliveryFee
 
   const handleCheckout = () => {
-    // If we have phone from URL and a selected location, create order directly
-    if (phoneFromUrl && selectedLocationId && customer) {
+    const phone = phoneInput || phoneFromUrl
+    if (phone && selectedLocationId && customer) {
       quickCheckoutMutation.mutate({
-        phone: phoneFromUrl,
+        phone,
         locationId: selectedLocationId,
         items: items.map((item) => ({
           productId: item.product.id,
@@ -94,13 +99,12 @@ export function FloatingCart() {
         })),
       })
     } else {
-      // Otherwise, open checkout dialog
       setIsOpen(false)
       setShowCheckout(true)
     }
   }
 
-  const canQuickCheckout = phoneFromUrl && selectedLocationId && customer && items.length > 0
+  const canCheckout = (phoneInput || phoneFromUrl) && selectedLocationId && items.length > 0
   const isProcessing = quickCheckoutMutation.isPending
 
   return (
@@ -109,13 +113,13 @@ export function FloatingCart() {
         <SheetTrigger asChild>
           <Button
             size="lg"
-            className="fixed bottom-6 start-6 rounded-full shadow-lg h-14 w-14 p-0 z-40 flex items-center justify-center"
+            className="fixed bottom-6 start-6 rounded-full shadow-lg h-14 w-14 p-0 z-40 flex items-center justify-center bg-black hover:bg-gray-800"
           >
-            <ShoppingCart className="h-6 w-6" />
+            <ShoppingCart className="h-6 w-6 text-white" />
             {itemCount > 0 && (
               <Badge
                 variant="secondary"
-                className="absolute -top-1 -right-1 h-5 w-5 p-0 rounded-full flex items-center justify-center text-xs"
+                className="absolute -top-1 -right-1 h-5 w-5 p-0 rounded-full flex items-center justify-center text-xs bg-yellow-500 text-black border-0"
               >
                 {itemCount}
               </Badge>
@@ -123,158 +127,151 @@ export function FloatingCart() {
           </Button>
         </SheetTrigger>
 
-        <SheetContent className="w-full sm:max-w-md p-4">
-          <SheetHeader>
-            <SheetTitle>Your Cart ({itemCount} items)</SheetTitle>
+        <SheetContent className="w-full sm:max-w-md p-0 bg-black border-0 flex flex-col">
+          <SheetHeader className="p-4 pb-0 shrink-0">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-white text-lg">سلة التسوق ({itemCount})</SheetTitle>
+              <button onClick={() => setIsOpen(false)} className="text-white hover:text-gray-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </SheetHeader>
 
-          <div className="flex flex-col h-full mt-6">
+          <div className="flex-1 overflow-y-auto p-4">
             {items.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-muted-foreground">Your cart is empty</p>
+              <div className="flex items-center justify-center h-full">
+                <p className="text-white/60">Your cart is empty</p>
               </div>
             ) : (
-              <>
-                <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
-                  {/* Cart Items */}
-                  <div>
-                    {items.map((item) => (
-                      <CartItem key={item.product.id} item={item} />
-                    ))}
-                  </div>
-
-                  {/* Customer Info Section */}
-                  <div className="border-t pt-4 space-y-4">
-                    {/* Case 1: No Phone Number */}
-                    {!phoneFromUrl && (
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <span className="text-sm text-muted-foreground">
-                          There is no phone number
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-full hover:bg-primary hover:text-primary-foreground"
-                          onClick={() => {
-                            setIsOpen(false)
-                            setShowCheckout(true)
-                          }}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Case 2: Phone exists, loading */}
-                    {phoneFromUrl && isLoadingCustomer && (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        <span className="ms-2 text-sm text-muted-foreground">
-                          Loading customer info...
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Case 3: Phone exists, loaded */}
-                    {phoneFromUrl && !isLoadingCustomer && (
-                      <>
-                        {/* Phone Display */}
-                        <div className="flex items-center gap-2 text-sm">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">Phone:</span>
-                          <span>{phoneFromUrl}</span>
-                        </div>
-
-                        {/* Location Section */}
-                        {customer && customerLocations.length > 0 ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-medium">
-                              <MapPin className="h-4 w-4 text-muted-foreground" />
-                              <span>Select Delivery Location:</span>
-                            </div>
-                            <RadioGroup
-                              value={selectedLocationId}
-                              onValueChange={setSelectedLocationId}
-                            >
-                              {customerLocations.map((location) => (
-                                <div key={location.id} className="flex items-start space-x-2">
-                                  <RadioGroupItem
-                                    value={location.id}
-                                    id={location.id}
-                                    className="mt-1"
-                                  />
-                                  <Label
-                                    htmlFor={location.id}
-                                    className="font-normal cursor-pointer text-sm leading-relaxed"
-                                  >
-                                    {location.description}
-                                  </Label>
-                                </div>
-                              ))}
-                            </RadioGroup>
-                          </div>
-                        ) : (
-                          /* Case 4: Phone exists but no locations (or customer not found) */
-                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <span className="text-sm text-muted-foreground">No location</span>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 rounded-full hover:bg-primary hover:text-primary-foreground"
-                              onClick={() => {
-                                setIsOpen(false)
-                                setShowCheckout(true)
-                              }}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+              <div className="space-y-4">
+                {/* Cart Items */}
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <CartItem key={item.product.id} item={item} />
+                  ))}
                 </div>
+
+                {/* Phone Number Input */}
+                <div className="bg-white rounded-xl p-4">
+                  <Label htmlFor="phone" className="text-right block mb-2 font-bold">
+                    رقم الهاتف
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="01016945354"
+                    value={phoneInput || phoneFromUrl || ''}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className="text-center"
+                    dir="ltr"
+                  />
+                </div>
+
+                {/* Address Selection */}
+                {customer && customerLocations.length > 0 ? (
+                  <div className="bg-white rounded-xl p-4">
+                    <Label className="text-right block mb-3 font-bold">العنوان</Label>
+                    <RadioGroup value={selectedLocationId} onValueChange={setSelectedLocationId}>
+                      <div className="grid grid-cols-2 gap-3">
+                        {customerLocations.map((location) => (
+                          <div key={location.id} className="relative">
+                            <RadioGroupItem
+                              value={location.id}
+                              id={location.id}
+                              className="peer sr-only"
+                            />
+                            <Label
+                              htmlFor={location.id}
+                              className="flex flex-col items-center justify-center rounded-lg border-2 border-gray-200 p-3 cursor-pointer hover:bg-gray-50 peer-data-[state=checked]:border-yellow-500 peer-data-[state=checked]:bg-yellow-50"
+                            >
+                              <span className="text-sm font-medium text-center">
+                                {location.description}
+                              </span>
+                              <span className="text-xs text-gray-500 mt-1">{location.city}</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                    <div className="mt-3 text-center">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="text-yellow-500 hover:text-yellow-600"
+                        onClick={() => {
+                          setIsOpen(false)
+                          setShowCheckout(true)
+                        }}
+                      >
+                        + إضافة عنوان جديد
+                      </Button>
+                    </div>
+                  </div>
+                ) : phoneToSearch && phoneToSearch.length >= 8 && !isLoadingCustomer ? (
+                  <div className="bg-white rounded-xl p-4">
+                    <Label className="text-right block mb-3 font-bold">العنوان</Label>
+                    <div className="text-center py-4">
+                      <p className="text-gray-500 mb-3">لا توجد عناوين محفوظة</p>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setIsOpen(false)
+                          setShowCheckout(true)
+                        }}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                      >
+                        + إضافة عنوان جديد
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Order Summary */}
-                <div className="border-t pt-4 mt-4 space-y-2">
+                <div className="bg-white rounded-xl p-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Subtotal</span>
-                    <span className="font-medium">
-                      {subtotal.toFixed(3)} {currency}
-                    </span>
+                    <span>الإجمالي</span>
+                    <span className="font-bold">{subtotal.toFixed(0)} ج.م</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Delivery Fee</span>
-                    <span className="font-medium">
-                      {deliveryFee.toFixed(3)} {currency}
-                    </span>
+                    <span>الضريبة (10%)</span>
+                    <span className="font-bold">{tax.toFixed(0)} ج.م</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold border-t pt-2">
-                    <span>Total</span>
-                    <span>
-                      {total.toFixed(3)} {currency}
-                    </span>
+                  <div className="flex justify-between text-base font-bold border-t pt-2">
+                    <span>الإجمالي</span>
+                    <span>{total.toFixed(0)} ج.م</span>
                   </div>
-
-                  <Button
-                    onClick={handleCheckout}
-                    className="w-full mt-4"
-                    size="lg"
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                        Creating Order...
-                      </>
-                    ) : canQuickCheckout ? (
-                      'Create Order'
-                    ) : (
-                      'Proceed to Checkout'
-                    )}
-                  </Button>
                 </div>
-              </>
+
+                {/* Payment Method */}
+                <div>
+                  <Label className="text-white text-right block mb-3 font-bold">طريقة الدفع</Label>
+                  <div className="bg-white rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full border-2 border-yellow-500 flex items-center justify-center">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                      </div>
+                      <span className="font-medium">دفع عند الإستلام</span>
+                    </div>
+                    <span className="text-2xl">💵</span>
+                  </div>
+                </div>
+
+                {/* Checkout Button */}
+                <Button
+                  onClick={handleCheckout}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold text-lg h-14 rounded-xl"
+                  disabled={!canCheckout || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="me-2 h-5 w-5 animate-spin" />
+                      جاري المعالجة...
+                    </>
+                  ) : (
+                    'تأكيد الطلب'
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </SheetContent>
@@ -283,7 +280,7 @@ export function FloatingCart() {
       <CheckoutDialog
         open={showCheckout}
         onOpenChange={setShowCheckout}
-        initialPhone={phoneFromUrl || undefined}
+        initialPhone={phoneInput || phoneFromUrl || undefined}
       />
     </>
   )

@@ -59,7 +59,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <p className="text-black font-bold text-sm mb-3">{product.price.toFixed(0)} ج.م</p>
 
         {/* Quantity Controls */}
-        <div className="flex items-center justify-center gap-3 bg-white rounded-lg w-fit mx-auto p-2 ">
+        <div className="flex items-center justify-center gap-3 bg-white rounded-lg w-fit sm:mx-auto p-2 ">
           <button
             onClick={incrementQty}
             className="w-6 h-6 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
