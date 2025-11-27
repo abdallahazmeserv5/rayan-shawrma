@@ -282,21 +282,13 @@ export interface Customer {
  */
 export interface Location {
   id: string;
-  /**
-   * The customer who owns this location
-   */
   customer: string | Customer;
-  /**
-   * E.g., "Home", "Office", "Building 5, Apartment 12"
-   */
+  city: string;
+  neighborhood: string;
+  street: string;
+  apartmentNumber?: string | null;
   description: string;
-  /**
-   * Latitude coordinate
-   */
   lat: number;
-  /**
-   * Longitude coordinate
-   */
   lng: number;
   updatedAt: string;
   createdAt: string;
@@ -692,6 +684,10 @@ export interface CustomersSelect<T extends boolean = true> {
  */
 export interface LocationsSelect<T extends boolean = true> {
   customer?: T;
+  city?: T;
+  neighborhood?: T;
+  street?: T;
+  apartmentNumber?: T;
   description?: T;
   lat?: T;
   lng?: T;

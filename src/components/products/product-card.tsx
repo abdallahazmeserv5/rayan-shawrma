@@ -1,22 +1,11 @@
 'use client'
 
-import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, ShoppingCart } from 'lucide-react'
 import type { Product, Media } from '@/payload-types'
 import { useState } from 'react'
 import { useCart } from '@/lib/cart-context'
-import { toast } from 'sonner'
 import ImageFallback from '../image-fallback'
-import { useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 
 interface ProductCardProps {
   product: Product
@@ -25,61 +14,77 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const [qty, setQty] = useState(1)
   const { addItem } = useCart()
-  const t = useTranslations()
+
+  const incrementQty = () => {
+    const newQty = qty + 1
+    setQty(newQty)
+  }
+
+  const decrementQty = () => {
+    if (qty > 1) {
+      const newQty = qty - 1
+      setQty(newQty)
+    }
+  }
+
   const handleAddToCart = () => {
     addItem(product, qty)
     toast.success(`Added ${qty} ${product.title} to cart`)
-    setQty(1) // Reset quantity
+    setQty(1)
   }
-
-  const incrementQty = () => setQty((prev) => prev + 1)
-  const decrementQty = () => setQty((prev) => (prev > 1 ? prev - 1 : 1))
 
   const imageUrl =
     product.image && typeof product.image === 'object' ? (product.image as Media).url : null
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      {imageUrl && (
-        <div className="relative aspect-square w-full overflow-hidden bg-gray-100">
+    <div className="bg-[#F8F8F8] rounded-2xl overflow-hidden shadow-sm border border-gray-100 p-3 relative">
+      {/* Product Image - Circular */}
+      <div className="w-full rounded-full flex items-center justify-center mb-3 overflow-hidden">
+        {imageUrl ? (
           <ImageFallback
             src={imageUrl}
             alt={product.title || 'Product'}
-            fill
-            className="object-contain"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            width={80}
+            height={80}
+            className="object-contain max-w-20 max-h-20"
           />
-        </div>
-      )}
-
-      <CardHeader>
-        <CardTitle className="line-clamp-2">{product.title}</CardTitle>
-        {product.description && (
-          <CardDescription className="line-clamp-2">{product.description}</CardDescription>
+        ) : (
+          <div className="text-6xl">🍽️</div>
         )}
-      </CardHeader>
+      </div>
 
-      <CardContent>
-        <div className="text-2xl font-bold text-primary">{product.price.toFixed(3)}</div>
-      </CardContent>
+      {/* Product Info */}
+      <div className="text-center">
+        <h3 className="font-bold text-base mb-1 line-clamp-1">{product.title}</h3>
+        <p className="text-black font-bold text-sm mb-3">{product.price.toFixed(0)} ج.م</p>
 
-      <CardFooter className="flex flex-col gap-3">
-        <div className="flex items-center justify-center gap-3 w-full">
-          <Button variant="outline" size="icon" onClick={decrementQty} disabled={qty <= 1}>
-            <Minus className="h-4 w-4" />
-          </Button>
-
-          <span className="text-lg font-semibold min-w-8 text-center">{qty}</span>
-
-          <Button variant="outline" size="icon" onClick={incrementQty}>
-            <Plus className="h-4 w-4" />
-          </Button>
+        {/* Quantity Controls */}
+        <div className="flex items-center justify-center gap-3 bg-white rounded-lg w-fit mx-auto p-2 ">
+          <button
+            onClick={incrementQty}
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
+          >
+            <Plus size={14} strokeWidth={3} />
+          </button>
+          <span className="text-base font-bold min-w-[20px] text-center">{qty}</span>
+          <button
+            onClick={decrementQty}
+            disabled={qty <= 1}
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Minus size={14} strokeWidth={3} />
+          </button>
         </div>
+      </div>
 
-        <Button onClick={handleAddToCart} className="w-full" size="lg">
-          {t('addToCart')}
-        </Button>
-      </CardFooter>
-    </Card>
+      {/* Add to Cart Icon - Floating */}
+      <button
+        onClick={handleAddToCart}
+        className="absolute bottom-3 end-3 size-8 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-all hover:scale-110 shadow-lg"
+        aria-label="Add to cart"
+      >
+        <ShoppingCart size={18} />
+      </button>
+    </div>
   )
 }

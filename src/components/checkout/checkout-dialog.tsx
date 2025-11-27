@@ -1,10 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
@@ -13,13 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Loader2 } from 'lucide-react'
 import { useCart } from '@/lib/cart-context'
 import { useCheckout } from '@/hooks/use-checkout'
 import { useQuery } from '@tanstack/react-query'
 import { getCustomerByPhone } from '@/actions/customers.actions'
-import { Loader2 } from 'lucide-react'
 import { useDebounce } from '@/hooks/use-debounce'
-import { LocationInput } from './location-input'
+import { PhoneInput } from '../ui/phone-input'
 
 interface CheckoutDialogProps {
   open: boolean
@@ -27,86 +37,103 @@ interface CheckoutDialogProps {
   initialPhone?: string
 }
 
+// --------------------
+// Validation Schema
+// --------------------
+const checkoutSchema = z.object({
+  phone: z.string().min(8, 'Phone number must be at least 8 digits'),
+  phone2: z.string().optional(),
+  name: z.string().min(1, 'Name is required').optional(),
+  selectedLocationId: z.string().optional(),
+  newLocation: z
+    .object({
+      description: z.string().min(1, 'Description required'),
+      city: z.string().min(1, 'City required'),
+      neighborhood: z.string().min(1, 'Neighborhood required'),
+      street: z.string().min(1, 'Street required'),
+      apartmentNumber: z.string().optional(),
+      lat: z.number(),
+      lng: z.number(),
+    })
+    .optional(),
+  paymentMethod: z.enum(['cod' /* , 'myfatoorah' */]),
+})
+
+type CheckoutFormValues = z.infer<typeof checkoutSchema>
+
 export function CheckoutDialog({ open, onOpenChange, initialPhone }: CheckoutDialogProps) {
   const { items } = useCart()
   const checkoutMutation = useCheckout()
+  const debouncedPhone = useDebounce(initialPhone || '', 500)
 
-  const [phone, setPhone] = useState(initialPhone || '')
-  const [phone2, setPhone2] = useState('')
-  const [name, setName] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cod' /* | 'myfatoorah' */>('cod')
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('')
-  const [newLocation, setNewLocation] = useState<{
-    description: string
-    lat: number
-    lng: number
-  } | null>(null)
+  // --------------------
+  // React Hook Form Setup
+  // --------------------
+  const form = useForm<CheckoutFormValues>({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: {
+      phone: initialPhone || '',
+      phone2: '',
+      name: '',
+      selectedLocationId: '',
+      newLocation: undefined,
+      paymentMethod: 'cod',
+    },
+  })
 
-  const debouncedPhone = useDebounce(phone, 500)
+  const { watch, setValue, reset } = form
+  const phone = watch('phone')
+  const selectedLocationId = watch('selectedLocationId')
+  const newLocation = watch('newLocation')
 
-  // Update phone when initialPhone changes
-  useEffect(() => {
-    if (initialPhone) {
-      setPhone(initialPhone)
-    }
-  }, [initialPhone])
-
-  // Check if customer exists
+  // --------------------
+  // Fetch Customer by Phone
+  // --------------------
   const { data: customerData, isLoading: isCheckingCustomer } = useQuery({
-    queryKey: ['customer', debouncedPhone],
-    queryFn: () => getCustomerByPhone(debouncedPhone),
-    enabled: debouncedPhone.length >= 8,
+    queryKey: ['customer', phone],
+    queryFn: () => getCustomerByPhone(phone),
+    enabled: phone.length >= 8,
   })
 
   const customer = customerData?.customer
 
+  // --------------------
   // Reset form when dialog closes
+  // --------------------
   useEffect(() => {
     if (!open) {
-      if (!initialPhone) setPhone('')
-      setPhone2('')
-      setName('')
-      setPaymentMethod('cod')
-      setSelectedLocationId('')
-      setNewLocation(null)
+      reset({
+        phone: initialPhone || '',
+        phone2: '',
+        name: '',
+        selectedLocationId: '',
+        newLocation: undefined,
+        paymentMethod: 'cod',
+      })
     }
-  }, [open, initialPhone])
+  }, [open, initialPhone, reset])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  // --------------------
+  // Submit Handler
+  // --------------------
+  const onSubmit = (values: CheckoutFormValues) => {
+    if (!customer && !values.name) return
+    if (!values.selectedLocationId && !values.newLocation) return
 
-    // Validation
-    if (!phone || phone.length < 8) {
-      return
-    }
-
-    if (!customer && !name) {
-      return
-    }
-
-    if (!selectedLocationId && !newLocation) {
-      return
-    }
-
-    // Prepare checkout data
     checkoutMutation.mutate({
-      phone,
-      phone2: phone2 || undefined,
-      name: customer ? undefined : name,
-      location: selectedLocationId ? { id: selectedLocationId } : newLocation || undefined,
+      phone: values.phone,
+      phone2: values.phone2 || undefined,
+      name: customer ? undefined : values.name,
+      location: values.selectedLocationId
+        ? { id: values.selectedLocationId }
+        : values.newLocation || undefined,
       items: items.map((item) => ({
         productId: item.product.id,
         qty: item.qty,
       })),
-      paymentMethod,
+      paymentMethod: values.paymentMethod,
     })
   }
-
-  const isFormValid =
-    phone.length >= 8 &&
-    (customer || name) &&
-    (selectedLocationId || newLocation) &&
-    !checkoutMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,132 +142,258 @@ export function CheckoutDialog({ open, onOpenChange, initialPhone }: CheckoutDia
           <DialogTitle>Checkout</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Phone Number */}
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="Enter your phone number"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-            {isCheckingCustomer && <p className="text-sm text-muted-foreground">Checking...</p>}
-            {customer && <p className="text-sm text-green-600">Welcome back, {customer.name}!</p>}
-          </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-4">
+            {/* Phone */}
 
-          {/* Secondary Phone */}
-          <div className="space-y-2">
-            <Label htmlFor="phone2">Secondary Phone (Optional)</Label>
-            <Input
-              id="phone2"
-              type="tel"
-              placeholder="Enter secondary phone number"
-              value={phone2}
-              onChange={(e) => setPhone2(e.target.value)}
-            />
-          </div>
+            <div className="flex gap-4 items-center">
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem className="flex-1" dir="ltr">
+                    <FormLabel>Phone Number *</FormLabel>
+                    <FormControl>
+                      <PhoneInput {...field} placeholder="Enter phone number" />
+                    </FormControl>
+                    <FormMessage />
+                    {isCheckingCustomer && (
+                      <p className="text-sm text-muted-foreground">Checking...</p>
+                    )}
+                    {customer && (
+                      <p className="text-sm text-green-600">Welcome back, {customer.name}!</p>
+                    )}
+                  </FormItem>
+                )}
+              />
 
-          {/* Name (only for new customers) */}
-          {!customer && phone.length >= 8 && (
-            <div className="space-y-2">
-              <Label htmlFor="name">Your Name *</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+              {/* Secondary Phone */}
+              <FormField
+                control={form.control}
+                name="phone2"
+                render={({ field }) => (
+                  <FormItem className="flex-1 self-start" dir="ltr">
+                    <FormLabel>Secondary Phone (Optional)</FormLabel>
+                    <FormControl>
+                      <PhoneInput {...field} placeholder="Enter secondary phone" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-          )}
 
-          {/* Location Selection */}
-          {customer &&
-          customer.locations &&
-          Array.isArray(customer.locations) &&
-          customer.locations.length > 0 ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Select Delivery Location *</Label>
-                <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a saved location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customer.locations.map((loc) => {
-                      const location = typeof loc === 'object' ? loc : null
-                      if (!location) return null
-                      return (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.description}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="text-center">
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => {
-                    setSelectedLocationId('')
-                    // Trigger new location input
-                  }}
-                >
-                  Or add a new location
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {/* New Location Input */}
-          {(!customer || !selectedLocationId) && phone.length >= 8 && (
-            <LocationInput onLocationChange={setNewLocation} />
-          )}
-
-          {/* Payment Method */}
-          <div className="space-y-3">
-            <Label>Payment Method *</Label>
-            <RadioGroup
-              value={paymentMethod}
-              onValueChange={(value) => setPaymentMethod(value as 'cod' /* | 'myfatoorah' */)}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="cod" id="cod" />
-                <Label htmlFor="cod" className="font-normal cursor-pointer">
-                  Cash on Delivery
-                </Label>
-              </div>
-              {/* COMMENTED OUT - MyFatoorah payment temporarily disabled */}
-              {/*
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="myfatoorah" id="myfatoorah" />
-                <Label htmlFor="myfatoorah" className="font-normal cursor-pointer">
-                  Online Payment (MyFatoorah)
-                </Label>
-              </div>
-              */}
-            </RadioGroup>
-          </div>
-
-          {/* Submit Button */}
-          <Button type="submit" className="w-full" size="lg" disabled={!isFormValid}>
-            {checkoutMutation.isPending ? (
-              <>
-                <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Place Order'
+            {/* Name */}
+            {!customer && phone.length >= 8 && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter your name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-          </Button>
-        </form>
+
+            {/* Location Selection */}
+            {!!customer?.locations?.length && (
+              <FormField
+                control={form.control}
+                name="selectedLocationId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Delivery Location *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a saved location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customer?.locations?.map((loc: any) => (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            {loc.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="mt-2 text-center">
+                      <Button
+                        type="button"
+                        variant="link"
+                        onClick={() => setValue('selectedLocationId', '')}
+                      >
+                        Or add a new location
+                      </Button>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* New Location Fields */}
+            {(!customer || !selectedLocationId) && phone.length >= 8 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="newLocation.description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address Description *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Home, Office, Building 5…" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="newLocation.city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter city" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="newLocation.neighborhood"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Neighborhood *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter neighborhood" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="newLocation.street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Street *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter street" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="newLocation.apartmentNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Apartment Number (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Optional" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="newLocation.lat"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            step={0.000001}
+                            placeholder="Latitude"
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value ? parseFloat(e.target.value) : undefined,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="newLocation.lng"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            step={0.000001}
+                            placeholder="Longitude"
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value ? parseFloat(e.target.value) : undefined,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Payment Method */}
+            <FormField
+              control={form.control}
+              name="paymentMethod"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Method *</FormLabel>
+                  <FormControl>
+                    <RadioGroup value={field.value} onValueChange={field.onChange}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="cod" id="cod" />
+                        <FormLabel htmlFor="cod" className="font-normal cursor-pointer">
+                          Cash on Delivery
+                        </FormLabel>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Submit */}
+            <Button type="submit" className="w-full" disabled={checkoutMutation.isPending}>
+              {checkoutMutation.isPending ? (
+                <>
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Place Order'
+              )}
+            </Button>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )

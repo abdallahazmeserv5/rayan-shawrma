@@ -13,13 +13,12 @@ export const Orders: CollectionConfig = {
   },
   access: {
     read: ({ req: { user } }) => {
-      // Admins can read all, public can't read (orders are created but not queried publicly)
       if (user) return true
       return false
     },
-    create: () => true, // Public create (for checkout)
-    update: ({ req: { user } }) => !!user, // Only admins can update
-    delete: ({ req: { user } }) => !!user, // Only admins can delete
+    create: () => true,
+    update: ({ req: { user } }) => !!user,
+    delete: ({ req: { user } }) => !!user,
   },
   fields: [
     {
@@ -32,6 +31,22 @@ export const Orders: CollectionConfig = {
         description: {
           en: 'The customer who placed this order',
           ar: 'العميل الذي قام بهذا الطلب',
+        },
+      },
+      custom: {
+        'plugin-import-export': {
+          toCSV: ({ value, columnName, row }) => {
+            // If value is already populated (an object), extract the name or email
+            if (value && typeof value === 'object' && 'id' in value) {
+              row[`${columnName}_id`] = (value as any).id
+              if ('name' in value) {
+                row[`${columnName}_name`] = (value as any).name
+              }
+              if ('email' in value) {
+                row[`${columnName}_email`] = (value as any).email
+              }
+            }
+          },
         },
       },
     },
@@ -64,6 +79,21 @@ export const Orders: CollectionConfig = {
           ar: 'مكان توصيل هذا الطلب',
         },
       },
+      custom: {
+        'plugin-import-export': {
+          toCSV: ({ value, columnName, row }) => {
+            if (value && typeof value === 'object' && 'id' in value) {
+              row[`${columnName}_id`] = (value as any).id
+              if ('name' in value) {
+                row[`${columnName}_name`] = (value as any).name
+              }
+              if ('address' in value) {
+                row[`${columnName}_address`] = (value as any).address
+              }
+            }
+          },
+        },
+      },
     },
     {
       name: 'items',
@@ -78,6 +108,21 @@ export const Orders: CollectionConfig = {
           relationTo: 'products',
           required: true,
           label: { en: 'Product', ar: 'المنتج' },
+          custom: {
+            'plugin-import-export': {
+              toCSV: ({ value, columnName, row }) => {
+                if (value && typeof value === 'object' && 'id' in value) {
+                  row[`${columnName}_id`] = (value as any).id
+                  if ('name' in value) {
+                    row[`${columnName}_name`] = (value as any).name
+                  }
+                  if ('title' in value) {
+                    row[`${columnName}_title`] = (value as any).title
+                  }
+                }
+              },
+            },
+          },
         },
         {
           name: 'qty',
@@ -236,20 +281,17 @@ export const Orders: CollectionConfig = {
   hooks: {
     beforeChange: [
       ({ data }) => {
-        // Calculate line totals for each item
         if (data?.items) {
           data.items = data.items.map((item: any) => ({
             ...item,
             lineTotal: (item.qty || 0) * (item.unitPrice || 0),
           }))
 
-          // Calculate subtotal
           data.subtotal = data.items.reduce(
             (sum: number, item: any) => sum + (item.lineTotal || 0),
             0,
           )
 
-          // Calculate total
           data.total = (data.subtotal || 0) + (data.deliveryFee || 0)
         }
 

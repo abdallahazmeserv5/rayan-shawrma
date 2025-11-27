@@ -53,7 +53,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existingIndex >= 0) {
         // Update quantity of existing item
         const updated = [...prev]
-        updated[existingIndex].qty += qty
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          qty: updated[existingIndex].qty + qty,
+        }
         return updated
       } else {
         // Add new item
@@ -76,7 +79,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const updated = [...prev]
       const index = updated.findIndex((item) => item.product.id === productId)
       if (index >= 0) {
-        updated[index].qty = qty
+        updated[index] = {
+          ...updated[index],
+          qty,
+        }
       }
       return updated
     })

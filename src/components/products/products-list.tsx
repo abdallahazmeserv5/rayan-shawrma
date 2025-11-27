@@ -3,16 +3,17 @@
 import { getCategories } from '@/actions/categories.actions'
 import { getProducts } from '@/actions/products.actions'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useQuery } from '@tanstack/react-query'
-import { useLocale, useTranslations } from 'next-intl'
+import { useLocale } from 'next-intl'
 import { useState } from 'react'
 import { ProductCard } from './product-card'
+import type { Media } from '@/payload-types'
+import ImageFallback from '../image-fallback'
 
 export function ProductsList() {
   const locale = useLocale() as 'ar' | 'en'
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const t = useTranslations()
+
   // Fetch categories
   const { data: categoriesData } = useQuery({
     queryKey: ['categories', locale],
@@ -32,13 +33,12 @@ export function ProductsList() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="space-y-4">
-            <Skeleton className="aspect-square w-full" />
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-10 w-full" />
+      <div className="grid grid-cols-2 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="space-y-3">
+            <Skeleton className="aspect-square w-full rounded-full" />
+            <Skeleton className="h-4 w-3/4 mx-auto" />
+            <Skeleton className="h-4 w-1/2 mx-auto" />
           </div>
         ))}
       </div>
@@ -63,22 +63,61 @@ export function ProductsList() {
 
   return (
     <div className="space-y-6">
-      {/* Category Tabs */}
+      {/* Category Tabs - Horizontal Scroll with Circular Images */}
       {hasCategories && (
-        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="all">{t('allProducts')}</TabsTrigger>
-            {categories.map((category) => (
-              <TabsTrigger key={category.id} value={category.id}>
-                {category.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-max px-4">
+            {/* All Categories */}
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`flex flex-col items-center gap-2 min-w-[80px] ${
+                selectedCategory === 'all' ? 'opacity-100' : 'opacity-60'
+              }`}
+            >
+              <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center overflow-hidden">
+                <span className="text-white text-2xl">🍽️</span>
+              </div>
+              <span className="text-sm font-medium">الكل</span>
+            </button>
+
+            {/* Category Items */}
+            {categories.map((category) => {
+              const imageUrl =
+                category.image && typeof category.image === 'object'
+                  ? (category.image as Media).url
+                  : null
+
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`flex flex-col items-center gap-2 min-w-[80px] ${
+                    selectedCategory === category.id ? 'opacity-100' : 'opacity-60'
+                  }`}
+                >
+                  <div className="w-16 h-16 rounded-full bg-linear-to-br from-amber-50 to-orange-50 flex items-center justify-center overflow-hidden">
+                    {imageUrl ? (
+                      <ImageFallback
+                        src={imageUrl}
+                        alt={category.name}
+                        width={64}
+                        height={64}
+                        className="object-cover max-size-16 w-full h-full"
+                      />
+                    ) : (
+                      <span className="text-2xl">📦</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium line-clamp-1">{category.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* Products Grid - 2 Columns */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 px-4">
         {data.products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
