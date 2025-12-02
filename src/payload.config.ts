@@ -17,6 +17,8 @@ import { Customers } from './collections/Customers'
 import { Locations } from './collections/Locations'
 import { Orders } from './collections/Orders'
 import { PaymentRecords } from './collections/PaymentRecords'
+import { WhatsAppSession } from './collections/WhatsAppSession'
+import { WhatsAppMessages } from './collections/WhatsAppMessages'
 import SiteSettings from './globals/SiteSettings'
 import StoreSettings from './globals/StoreSettings'
 import { importExportPlugin } from '@payloadcms/plugin-import-export'
@@ -31,7 +33,18 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Categories, Products, Customers, Locations, Orders, PaymentRecords],
+  collections: [
+    Users,
+    Media,
+    Categories,
+    Products,
+    Customers,
+    Locations,
+    Orders,
+    PaymentRecords,
+    WhatsAppSession,
+    WhatsAppMessages,
+  ],
   globals: [SiteSettings, StoreSettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

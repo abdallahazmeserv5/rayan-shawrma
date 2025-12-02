@@ -75,6 +75,8 @@ export interface Config {
     locations: Location;
     orders: Order;
     'payment-records': PaymentRecord;
+    'whatsapp-sessions': WhatsappSession;
+    'whatsapp-messages': WhatsappMessage;
     exports: Export;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -91,6 +93,8 @@ export interface Config {
     locations: LocationsSelect<false> | LocationsSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
     'payment-records': PaymentRecordsSelect<false> | PaymentRecordsSelect<true>;
+    'whatsapp-sessions': WhatsappSessionsSelect<false> | WhatsappSessionsSelect<true>;
+    'whatsapp-messages': WhatsappMessagesSelect<false> | WhatsappMessagesSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -377,6 +381,58 @@ export interface PaymentRecord {
   createdAt: string;
 }
 /**
+ * Manage WhatsApp connection sessions
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whatsapp-sessions".
+ */
+export interface WhatsappSession {
+  id: string;
+  sessionId: string;
+  status: 'disconnected' | 'scanning' | 'connected';
+  /**
+   * Connected WhatsApp phone number
+   */
+  phoneNumber?: string | null;
+  /**
+   * Encrypted Baileys auth state (do not modify)
+   */
+  sessionData?: string | null;
+  /**
+   * Base64 QR code image (temporary)
+   */
+  qrCode?: string | null;
+  lastConnectedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * History of sent WhatsApp messages
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whatsapp-messages".
+ */
+export interface WhatsappMessage {
+  id: string;
+  /**
+   * Recipient phone number
+   */
+  to: string;
+  message: string;
+  status: 'pending' | 'sent' | 'failed';
+  /**
+   * User who sent the message
+   */
+  sentBy?: (string | null) | User;
+  sentAt?: string | null;
+  /**
+   * Error message if sending failed
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "exports".
  */
@@ -544,6 +600,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'payment-records';
         value: string | PaymentRecord;
+      } | null)
+    | ({
+        relationTo: 'whatsapp-sessions';
+        value: string | WhatsappSession;
+      } | null)
+    | ({
+        relationTo: 'whatsapp-messages';
+        value: string | WhatsappMessage;
       } | null)
     | ({
         relationTo: 'exports';
@@ -728,6 +792,34 @@ export interface PaymentRecordsSelect<T extends boolean = true> {
   status?: T;
   amount?: T;
   payload?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whatsapp-sessions_select".
+ */
+export interface WhatsappSessionsSelect<T extends boolean = true> {
+  sessionId?: T;
+  status?: T;
+  phoneNumber?: T;
+  sessionData?: T;
+  qrCode?: T;
+  lastConnectedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whatsapp-messages_select".
+ */
+export interface WhatsappMessagesSelect<T extends boolean = true> {
+  to?: T;
+  message?: T;
+  status?: T;
+  sentBy?: T;
+  sentAt?: T;
+  error?: T;
   updatedAt?: T;
   createdAt?: T;
 }
