@@ -11,6 +11,7 @@ export function useCheckout() {
   return useMutation({
     mutationFn: checkout,
     onSuccess: (data) => {
+      console.log({ data })
       if (!data.success) {
         toast.error(data.error || 'Checkout failed')
         return
@@ -33,6 +34,8 @@ export function useCheckout() {
       // */
     },
     onError: (error) => {
+      console.log({ error })
+
       toast.error(error instanceof Error ? error.message : 'Checkout failed')
     },
   })

@@ -15,8 +15,6 @@ export const Locations: CollectionConfig = {
       'neighborhood',
       'street',
       'apartmentNumber',
-      'lat',
-      'lng',
       'createdAt',
     ],
   },
@@ -36,7 +34,7 @@ export const Locations: CollectionConfig = {
     },
 
     // -------------------------
-    // New Address Structure Fields
+    // Modern Address Structure
     // -------------------------
 
     {
@@ -79,41 +77,17 @@ export const Locations: CollectionConfig = {
     // -------------------------
     // Description (kept)
     // -------------------------
+
     {
       name: 'description',
       type: 'text',
       required: true,
       label: { en: 'Address Description', ar: 'وصف العنوان' },
       admin: {
-        placeholder: { en: 'Enter address description', ar: 'أدخل وصف العنوان' },
-      },
-    },
-
-    // -------------------------
-    // Coordinates
-    // -------------------------
-    {
-      name: 'lat',
-      type: 'number',
-      required: true,
-      label: { en: 'Latitude', ar: 'خط العرض' },
-      admin: { step: 0.000001 },
-      validate: (value: number | null | undefined) => {
-        if (value === undefined || value === null) return 'Latitude is required'
-        if (value < -90 || value > 90) return 'Latitude must be between -90 and 90'
-        return true
-      },
-    },
-    {
-      name: 'lng',
-      type: 'number',
-      required: true,
-      label: { en: 'Longitude', ar: 'خط الطول' },
-      admin: { step: 0.000001 },
-      validate: (value: number | null | undefined) => {
-        if (value === undefined || value === null) return 'Longitude is required'
-        if (value < -180 || value > 180) return 'Longitude must be between -180 and 180'
-        return true
+        placeholder: {
+          en: 'Short description (Home, Office...)',
+          ar: 'وصف مختصر (منزل، مكتب...)',
+        },
       },
     },
   ],

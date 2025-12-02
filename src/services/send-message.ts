@@ -55,59 +55,76 @@ export async function baseFetch({
   }
 }
 
-export async function sendMessage({
-  number,
-  message,
-  retries = 3,
-}: {
-  number: string
-  message: string
-  retries?: number
-}) {
-  try {
-    const cleanNumber = number.startsWith('+') ? number.slice(1) : number
+// export async function sendMessage({
+//   number,
+//   message,
+//   retries = 3,
+// }: {
+//   number: string
+//   message: string
+//   retries?: number
+// }) {
+//   try {
+//     const cleanNumber = number.startsWith('+') ? number.slice(1) : number
 
-    // WhatsApp Bots API token
-    const apiToken =
-      process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN ||
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJtcVZrWndYclc3bWdxcnh0M2hMTXphNGpMY3hvTkJ1diIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzY0NDE5MTE2fQ.McpAZAco_1xvyfD74cdI_IfMlyuKrqhZWTZ0SSwmW8U'
+//     // WhatsApp Bots API token
+//     const apiToken =
+//       process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN ||
+//       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJtcVZrWndYclc3bWdxcnh0M2hMTXphNGpMY3hvTkJ1diIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzY0NDE5MTE2fQ.McpAZAco_1xvyfD74cdI_IfMlyuKrqhZWTZ0SSwmW8U'
 
-    console.log({ apiToken, cleanNumber, message })
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      const res = await baseFetch({
-        url: `https://app.needbots.com/api/send`,
-        externalApi: true,
-        method: 'POST',
-        body: {
-          messageObject: {
-            number: cleanNumber,
-            type: 'text',
-            message,
-          },
-        },
-      })
+//     console.log({ apiToken, cleanNumber, message })
+//     for (let attempt = 0; attempt <= retries; attempt++) {
+//       const res = await baseFetch({
+//         url: `https://app.needbots.com/api/send`,
+//         externalApi: true,
+//         method: 'POST',
+//         body: {
+//           messageObject: {
+//             number: cleanNumber,
+//             type: 'text',
+//             message,
+//           },
+//         },
+//       })
 
-      console.log('WhatsApp API Response:', res)
+//       console.log('WhatsApp API Response:', res)
 
-      // Check if the API returned success
-      if (res && res.success) {
-        return res
-      }
+//       // Check if the API returned success
+//       if (res && res.success) {
+//         return res
+//       }
 
-      // If not successful, log the error
-      if (res && !res.success) {
-        console.error('API returned failure:', res.message)
-      }
+//       // If not successful, log the error
+//       if (res && !res.success) {
+//         console.error('API returned failure:', res.message)
+//       }
 
-      // wait 200ms before retrying
-      if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
-      }
-    }
+//       // wait 200ms before retrying
+//       if (attempt < retries) {
+//         await new Promise((resolve) => setTimeout(resolve, 200))
+//       }
+//     }
 
-    return null
-  } catch (error) {
-    console.error('sendMessage error:', error)
-    return null
+//     return null
+//   } catch (error) {
+//     console.error('sendMessage error:', error)
+//     return null
+//   }
+// }
+
+export async function sendMessageAPI(data: { to: string; text: string; sessionId: string }) {
+  const res = await fetch('http://localhost:3000/message/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!res.ok) {
+    const errorText = await res.text()
+    throw new Error(`Failed to send message: ${errorText}`)
   }
+
+  return res.json()
 }

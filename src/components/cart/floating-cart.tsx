@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
@@ -10,15 +10,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ShoppingCart, Loader2, X } from 'lucide-react'
 import { useCart } from '@/lib/cart-context'
 import { CartItem } from './cart-item'
-import { CheckoutDialog } from '../checkout/checkout-dialog'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { AddAddressDialog } from '../checkout/checkout-dialog'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getStoreSettings } from '@/actions/settings.actions'
-import { getCustomerByPhone } from '@/actions/customers.actions'
 import { quickCheckout } from '@/actions/quick-checkout.actions'
 import { useLocale } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import type { Location } from '@/payload-types'
+import { useLocationsByPhone } from '@/hooks/use-locations-by-phone'
 
 export function FloatingCart() {
   const { items, itemCount, subtotal, clearCart } = useCart()
@@ -29,34 +28,22 @@ export function FloatingCart() {
   const locale = useLocale() as 'ar' | 'en'
   const searchParams = useSearchParams()
   const phoneFromUrl = searchParams.get('phone')
+  const queryClient = useQueryClient()
 
   const { data: settingsData } = useQuery({
     queryKey: ['store-settings', locale],
     queryFn: () => getStoreSettings(locale),
   })
 
-  // Fetch customer data based on phone input or URL
+  // Fetch locations based on phone input or URL
   const phoneToSearch = phoneInput || phoneFromUrl
-  const { data: customerData, isLoading: isLoadingCustomer } = useQuery({
-    queryKey: ['customer-from-phone', phoneToSearch],
-    queryFn: () => getCustomerByPhone(phoneToSearch!),
-    enabled: !!phoneToSearch && phoneToSearch.length >= 8,
-  })
+  const { data: locationsData, isLoading: isLoadingLocations } = useLocationsByPhone(
+    phoneToSearch || '',
+  )
 
-  const customer = customerData?.customer
+  const customer = locationsData?.customer
+  const customerLocations = locationsData?.locations || []
 
-  // Filter valid locations from customer data
-  const customerLocations = useMemo(() => {
-    if (!customer?.locations || !Array.isArray(customer.locations)) {
-      return []
-    }
-
-    return customer.locations.filter((loc): loc is Location => {
-      return typeof loc === 'object' && loc !== null && 'id' in loc
-    })
-  }, [customer])
-
-  // Auto-select first location if available and none selected
   useEffect(() => {
     if (customerLocations.length > 0 && !selectedLocationId) {
       setSelectedLocationId(customerLocations[0].id)
@@ -66,11 +53,12 @@ export function FloatingCart() {
   const quickCheckoutMutation = useMutation({
     mutationFn: quickCheckout,
     onSuccess: (data) => {
+      console.log('quick checkout success', { data })
       if (!data.success) {
         toast.error(data.error || 'Order creation failed')
         return
       }
-
+      console.log('after quick checkout')
       toast.success('Your order has been created successfully!')
       clearCart()
       setIsOpen(false)
@@ -83,25 +71,34 @@ export function FloatingCart() {
   })
 
   const deliveryFee = settingsData?.settings?.deliveryFee || 0
-  const currency = settingsData?.settings?.currency || 'KWD'
-  const tax = subtotal * 0.1 // 10% tax
+  const tax = subtotal * 0.1
   const total = subtotal + deliveryFee
 
   const handleCheckout = () => {
     const phone = phoneInput || phoneFromUrl
-    if (phone && selectedLocationId && customer) {
-      quickCheckoutMutation.mutate({
-        phone,
-        locationId: selectedLocationId,
-        items: items.map((item) => ({
-          productId: item.product.id,
-          qty: item.qty,
-        })),
-      })
-    } else {
+    if (!phone || !selectedLocationId || !customer) {
+      // Open dialog if missing phone or location
       setIsOpen(false)
       setShowCheckout(true)
+      return
     }
+    console.log('before quick checkout')
+    // Place order with selected phone and location
+    quickCheckoutMutation.mutate({
+      phone,
+      locationId: selectedLocationId,
+      items: items.map((item) => ({
+        productId: item.product.id,
+        qty: item.qty,
+      })),
+    })
+  }
+
+  const handleAddressAdded = (locationId: string) => {
+    // Refresh locations data to get updated locations
+    queryClient.invalidateQueries({ queryKey: ['locations-by-phone'] })
+    // Auto-select the newly added location
+    setSelectedLocationId(locationId)
   }
 
   const canCheckout = (phoneInput || phoneFromUrl) && selectedLocationId && items.length > 0
@@ -207,7 +204,7 @@ export function FloatingCart() {
                       </Button>
                     </div>
                   </div>
-                ) : phoneToSearch && phoneToSearch.length >= 8 && !isLoadingCustomer ? (
+                ) : phoneToSearch && phoneToSearch.length >= 8 && !isLoadingLocations ? (
                   <div className="bg-white rounded-xl p-4">
                     <Label className="text-right block mb-3 font-bold">العنوان</Label>
                     <div className="text-center py-4">
@@ -277,11 +274,14 @@ export function FloatingCart() {
         </SheetContent>
       </Sheet>
 
-      <CheckoutDialog
-        open={showCheckout}
-        onOpenChange={setShowCheckout}
-        initialPhone={phoneInput || phoneFromUrl || undefined}
-      />
+      {!!phoneFromUrl && (
+        <AddAddressDialog
+          open={showCheckout}
+          onOpenChange={setShowCheckout}
+          initialPhone={phoneInput || phoneFromUrl}
+          onAddressAdded={handleAddressAdded}
+        />
+      )}
     </>
   )
 }

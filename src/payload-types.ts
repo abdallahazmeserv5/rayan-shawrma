@@ -288,8 +288,6 @@ export interface Location {
   street: string;
   apartmentNumber?: string | null;
   description: string;
-  lat: number;
-  lng: number;
   updatedAt: string;
   createdAt: string;
 }
@@ -689,8 +687,6 @@ export interface LocationsSelect<T extends boolean = true> {
   street?: T;
   apartmentNumber?: T;
   description?: T;
-  lat?: T;
-  lng?: T;
   updatedAt?: T;
   createdAt?: T;
 }

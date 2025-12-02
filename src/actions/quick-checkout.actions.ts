@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { getCustomerByPhone } from './customers.actions'
 import { getStoreSettingsInternal } from './settings.actions'
+import { sendMessageAPI } from '@/services/send-message'
 
 interface QuickCheckoutItem {
   productId: string
@@ -23,7 +24,7 @@ export async function quickCheckout(data: QuickCheckoutData) {
     // 1. Get customer by phone
     const customerResult = await getCustomerByPhone(data.phone)
     const customer = customerResult.customer
-
+    console.log('customer', customer)
     if (!customer) {
       return {
         success: false,
@@ -32,13 +33,21 @@ export async function quickCheckout(data: QuickCheckoutData) {
     }
 
     // 2. Validate location belongs to customer
-    const customerLocations = Array.isArray(customer.locations) ? customer.locations : []
-    const locationExists = customerLocations.some((loc) => {
-      const location = typeof loc === 'object' ? loc : null
-      return location?.id === data.locationId
+    const location = await payload.findByID({
+      collection: 'locations',
+      id: data.locationId,
     })
 
-    if (!locationExists) {
+    // Handle customer field as either string ID or populated object
+    const locationCustomerId =
+      typeof location?.customer === 'string' ? location.customer : location?.customer?.id
+
+    if (!location || locationCustomerId !== customer.id) {
+      console.log('Location validation failed', {
+        locationExists: !!location,
+        locationCustomerId,
+        customerId: customer.id,
+      })
       return {
         success: false,
         error: 'Invalid location selected',
@@ -98,6 +107,67 @@ export async function quickCheckout(data: QuickCheckoutData) {
         orderStatus: 'created',
       },
     })
+
+    // 7. Send WhatsApp confirmation message
+    try {
+      // Fetch full location details
+      const fullLocation = await payload.findByID({
+        collection: 'locations',
+        id: data.locationId,
+      })
+
+      // Fetch product details for the message
+      const productDetails = await Promise.all(
+        data.items.map(async (item) => {
+          const product = await payload.findByID({
+            collection: 'products',
+            id: item.productId,
+          })
+          return {
+            title: product.title,
+            qty: item.qty,
+            price: product.price,
+          }
+        }),
+      )
+
+      // Build order items list in Arabic
+      const itemsList = productDetails
+        .map((item) => `• ${item.title} × ${item.qty} - ${(item.price * item.qty).toFixed(0)} ج.م`)
+        .join('\n')
+
+      // Build location address
+      const locationAddress = `${fullLocation.street}, ${fullLocation.neighborhood}, ${fullLocation.city}${
+        fullLocation.apartmentNumber ? `, شقة ${fullLocation.apartmentNumber}` : ''
+      }`
+
+      // Create confirmation message in Arabic
+      const confirmationMessage = `🎉 شكراً لطلبك من عندنا!
+
+📦 *تفاصيل الطلب:*
+${itemsList}
+
+💰 *الإجمالي الفرعي:* ${subtotal.toFixed(0)} ج.م
+🚚 *رسوم التوصيل:* ${deliveryFee.toFixed(0)} ج.م
+💵 *المجموع الكلي:* ${total.toFixed(0)} ج.م
+
+📍 *عنوان التوصيل:*
+${locationAddress}
+
+⏰ سيصلك طلبك خلال *30 دقيقة*
+
+🙏 نشكرك على ثقتك بنا!`
+
+      // Send WhatsApp message
+      await sendMessageAPI({
+        to: customer.phone,
+        text: confirmationMessage,
+        sessionId: 'wqwe',
+      })
+    } catch (messageError) {
+      // Log error but don't fail the order
+      console.error('Failed to send WhatsApp confirmation:', messageError)
+    }
 
     return {
       success: true,

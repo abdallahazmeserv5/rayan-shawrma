@@ -6,8 +6,10 @@ import config from '@/payload.config'
 export async function createLocation(data: {
   customer: string
   description: string
-  lat: number
-  lng: number
+  city: string
+  neighborhood: string
+  street: string
+  apartmentNumber?: string
 }) {
   try {
     const payload = await getPayload({ config })
@@ -17,8 +19,10 @@ export async function createLocation(data: {
       data: {
         customer: data.customer,
         description: data.description,
-        lat: data.lat,
-        lng: data.lng,
+        city: data.city,
+        neighborhood: data.neighborhood,
+        street: data.street,
+        apartmentNumber: data.apartmentNumber || '',
       },
     })
 

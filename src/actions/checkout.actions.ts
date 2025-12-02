@@ -5,7 +5,6 @@ import config from '@/payload.config'
 import { getCustomerByPhone, createCustomer } from './customers.actions'
 import { createLocation } from './locations.actions'
 import { getStoreSettingsInternal } from './settings.actions'
-// import { MyFatoorahClient } from '@/lib/myfatoorah'
 
 interface CheckoutItem {
   productId: string
@@ -17,78 +16,83 @@ interface CheckoutData {
   phone2?: string
   name?: string
   location?: {
-    id?: string // Existing location ID
-    description?: string // New location
-    lat?: number
-    lng?: number
+    id?: string
+
+    // NEW FIELDS (no lat/lng)
+    description?: string
+    city?: string
+    neighborhood?: string
+    street?: string
+    apartmentNumber?: string
   }
   items: CheckoutItem[]
-  paymentMethod: 'cod' // | 'myfatoorah'
+  paymentMethod: 'cod'
 }
 
 export async function checkout(data: CheckoutData) {
   try {
     const payload = await getPayload({ config })
 
+    // -----------------------------
     // 1. Get or create customer
+    // -----------------------------
     const customerResult = await getCustomerByPhone(data.phone)
     let customer = customerResult.customer
 
     if (!customer) {
       if (!data.name) {
-        return {
-          success: false,
-          error: 'Customer name is required for new customers',
-        }
+        return { success: false, error: 'Customer name is required for new customers' }
       }
 
-      const createResult = await createCustomer({
+      const created = await createCustomer({
         name: data.name,
         phone: data.phone,
         phone2: data.phone2,
       })
 
-      if (!createResult.success || !createResult.customer) {
-        return {
-          success: false,
-          error: createResult.error || 'Failed to create customer',
-        }
+      if (!created.success || !created.customer) {
+        return { success: false, error: created.error || 'Failed to create customer' }
       }
 
-      customer = createResult.customer
+      customer = created.customer
     }
 
-    // 2. Get or create location
+    // -----------------------------
+    // 2. Existing or new location
+    // -----------------------------
     let locationId: string
 
     if (data.location?.id) {
-      // Use existing location
+      // Use existing customer location
       locationId = data.location.id
-    } else if (data.location?.description && data.location?.lat && data.location?.lng) {
+    } else if (
+      data.location?.description &&
+      data.location?.city &&
+      data.location?.neighborhood &&
+      data.location?.street
+    ) {
       // Create new location
-      const locationResult = await createLocation({
+      const loc = await createLocation({
         customer: customer.id,
         description: data.location.description,
-        lat: data.location.lat,
-        lng: data.location.lng,
+        city: data.location.city,
+        neighborhood: data.location.neighborhood,
+        street: data.location.street,
+        apartmentNumber: data.location.apartmentNumber || '',
       })
 
-      if (!locationResult.success || !locationResult.location) {
-        return {
-          success: false,
-          error: locationResult.error || 'Failed to create location',
-        }
+      if (!loc.success || !loc.location) {
+        return { success: false, error: loc.error || 'Failed to create location' }
       }
 
-      locationId = locationResult.location.id
+      locationId = loc.location.id
     } else {
-      return {
-        success: false,
-        error: 'Location is required',
-      }
+      return { success: false, error: 'Location is required' }
     }
 
-    // 3. Fetch product prices (server-side validation)
+    // -----------------------------
+    // 3. Load products + validate
+    // -----------------------------
     const items = await Promise.all(
       data.items.map(async (item) => {
         const product = await payload.findByID({
@@ -109,22 +113,19 @@ export async function checkout(data: CheckoutData) {
       }),
     )
 
-    // 4. Get delivery fee from settings
+    // -----------------------------
+    // 4. Settings / Delivery fee
+    // -----------------------------
     const settings = await getStoreSettingsInternal()
-    if (!settings) {
-      return {
-        success: false,
-        error: 'Failed to load store settings',
-      }
-    }
+    if (!settings) return { success: false, error: 'Failed to load store settings' }
 
     const deliveryFee = settings.deliveryFee || 0
-
-    // 5. Calculate totals
     const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0)
     const total = subtotal + deliveryFee
 
-    // 6. Create order
+    // -----------------------------
+    // 5. Create Order
+    // -----------------------------
     const order = await payload.create({
       collection: 'orders',
       data: {
@@ -142,69 +143,7 @@ export async function checkout(data: CheckoutData) {
       },
     })
 
-    // 7. If MyFatoorah, initiate payment
-    // COMMENTED OUT - MyFatoorah payment temporarily disabled
-    /*
-    if (data.paymentMethod === 'myfatoorah') {
-      if (!settings.myFatoorahApiKey) {
-        return {
-          success: false,
-          error: 'MyFatoorah is not configured',
-        }
-      }
-
-      const myFatoorah = new MyFatoorahClient(
-        settings.myFatoorahApiKey,
-        settings.myFatoorahTestMode || false,
-      )
-
-      const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
-
-      try {
-        const payment = await myFatoorah.initiatePayment({
-          amount: total,
-          currency: settings.currency || 'KWD',
-          customerName: customer.name,
-          customerPhone: customer.phone,
-          callbackUrl: settings.myFatoorahCallbackUrl || `${baseUrl}/payment/success`,
-          errorUrl: settings.myFatoorahErrorUrl || `${baseUrl}/payment/error`,
-          orderReference: order.id,
-        })
-
-        // Create payment record
-        await payload.create({
-          collection: 'payment-records',
-          data: {
-            order: order.id,
-            gateway: 'myfatoorah',
-            invoiceId: payment.invoiceId,
-            status: 'pending',
-            amount: total,
-            payload: payment,
-          },
-        })
-
-        return {
-          success: true,
-          orderId: order.id,
-          paymentUrl: payment.paymentUrl,
-        }
-      } catch (paymentError) {
-        console.error('Payment initiation error:', paymentError)
-        return {
-          success: false,
-          error: 'Failed to initiate payment',
-          orderId: order.id,
-        }
-      }
-    }
-    */
-
-    // COD order - success
-    return {
-      success: true,
-      orderId: order.id,
-    }
+    return { success: true, orderId: order.id }
   } catch (error) {
     console.error('Checkout error:', error)
     return {
