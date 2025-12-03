@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Loader2, QrCode, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { QRCodeSVG } from 'qrcode.react'
 
 const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
 
@@ -33,7 +34,7 @@ export default function WhatsAppConnectionPage() {
       const response = await fetch(`${WHATSAPP_SERVICE_URL}/session/global_session/status`, {
         signal: createTimeoutSignal(5000), // 5 second timeout
       })
-      
+
       if (!response.ok) {
         setStatus('disconnected')
         return
@@ -63,7 +64,7 @@ export default function WhatsAppConnectionPage() {
       // Only show error if it's not a network error (to avoid showing error on initial load)
       if (error instanceof TypeError && error.message.includes('fetch')) {
         setError(
-          `Cannot connect to WhatsApp service. Please make sure it's running at ${WHATSAPP_SERVICE_URL}`
+          `Cannot connect to WhatsApp service. Please make sure it's running at ${WHATSAPP_SERVICE_URL}`,
         )
       }
     }
@@ -87,7 +88,7 @@ export default function WhatsAppConnectionPage() {
       } catch (healthError) {
         setLoading(false)
         setError(
-          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`
+          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`,
         )
         return
       }
@@ -101,7 +102,7 @@ export default function WhatsAppConnectionPage() {
         body: JSON.stringify({ sessionId: 'global_session' }),
       })
       console.log({ response })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         throw new Error(errorData.error || `Server error: ${response.status}`)
@@ -156,7 +157,7 @@ export default function WhatsAppConnectionPage() {
       setLoading(false)
       if (error instanceof TypeError && error.message.includes('fetch')) {
         setError(
-          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`
+          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`,
         )
       } else {
         setError(error instanceof Error ? error.message : 'Failed to connect')
@@ -313,7 +314,12 @@ export default function WhatsAppConnectionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <img src={qrCode} alt="WhatsApp QR Code" className="max-w-sm rounded-lg border" />
+              <QRCodeSVG
+                value={qrCode}
+                size={256}
+                level="M"
+                className="rounded-lg border p-4 bg-white"
+              />
             </CardContent>
           </Card>
         )}
