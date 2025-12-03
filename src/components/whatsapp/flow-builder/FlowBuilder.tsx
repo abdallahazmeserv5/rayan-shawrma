@@ -20,6 +20,7 @@ import { ConditionNode } from './nodes/ConditionNode'
 import { DelayNode } from './nodes/DelayNode'
 import { HttpRequestNode } from './nodes/HttpRequestNode'
 import { EmailNode } from './nodes/EmailNode'
+import { QuestionNode } from './nodes/QuestionNode'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +31,7 @@ const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'ht
 const nodeTypes = {
   message: MessageNode,
   start: StartNode,
+  question: QuestionNode,
   condition: ConditionNode,
   delay: DelayNode,
   http: HttpRequestNode,

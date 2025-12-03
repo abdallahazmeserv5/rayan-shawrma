@@ -2,34 +2,24 @@ import { memo, useState, useEffect } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
 import {
   MessageSquare,
-  Image as ImageIcon,
-  Video,
+  CircleHelp,
   FileText,
   List,
   MousePointerClick,
   Plus,
   Trash,
-  GripVertical,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 
-export const MessageNode = memo(({ id, data, isConnectable }: any) => {
+export const QuestionNode = memo(({ id, data, isConnectable }: any) => {
   const { setNodes } = useReactFlow()
   const [messageType, setMessageType] = useState(data.messageType || 'text')
 
-  // Update local state when data changes externally
   useEffect(() => {
     setMessageType(data.messageType || 'text')
   }, [data.messageType])
@@ -115,29 +105,32 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
   }
 
   return (
-    <div className="w-[350px] bg-white rounded-lg border border-gray-200 shadow-md overflow-hidden">
-      <div className="bg-gray-50 p-3 border-b border-gray-200 flex items-center justify-between handle drag-handle cursor-move">
-        <div className="flex items-center gap-2 text-gray-700">
-          <MessageSquare size={16} />
-          <span className="font-medium text-sm">Send Message</span>
+    <div className="w-[350px] bg-white rounded-lg border border-purple-200 shadow-md overflow-hidden">
+      <div className="bg-purple-50 p-3 border-b border-purple-100 flex items-center justify-between handle drag-handle cursor-move">
+        <div className="flex items-center gap-2 text-purple-800">
+          <CircleHelp size={16} />
+          <span className="font-medium text-sm">Ask Question</span>
         </div>
-        <div className="flex gap-1">{/* Status indicators could go here */}</div>
       </div>
 
       <div className="p-4">
+        <div className="mb-4">
+          <Label className="text-xs mb-1.5 block text-purple-700 font-medium">
+            Save Response To Variable
+          </Label>
+          <Input
+            placeholder="e.g. user_name, email, age"
+            value={data.variable || ''}
+            onChange={(e) => updateData({ variable: e.target.value })}
+            className="border-purple-200 focus-visible:ring-purple-500"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Variable name to store the user's answer</p>
+        </div>
+
         <Tabs value={messageType} onValueChange={handleTypeChange} className="w-full">
-          <TabsList className="grid grid-cols-6 mb-4 h-auto p-1">
+          <TabsList className="grid grid-cols-3 mb-4 h-auto p-1">
             <TabsTrigger value="text" title="Text">
               <FileText size={14} />
-            </TabsTrigger>
-            <TabsTrigger value="image" title="Image">
-              <ImageIcon size={14} />
-            </TabsTrigger>
-            <TabsTrigger value="video" title="Video">
-              <Video size={14} />
-            </TabsTrigger>
-            <TabsTrigger value="document" title="Document">
-              <FileText size={14} className="text-blue-500" />
             </TabsTrigger>
             <TabsTrigger value="buttons" title="Buttons">
               <MousePointerClick size={14} />
@@ -148,94 +141,19 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
           </TabsList>
 
           <TabsContent value="text" className="mt-0">
-            <Label className="text-xs mb-1.5 block text-gray-500">Message Text</Label>
+            <Label className="text-xs mb-1.5 block text-gray-500">Question Text</Label>
             <Textarea
-              placeholder="Hello {{name}}, how can I help you?"
+              placeholder="What is your name?"
               className="min-h-[100px] text-sm resize-none"
               value={data.text || ''}
               onChange={(e) => updateData({ text: e.target.value })}
             />
-            <p className="text-[10px] text-gray-400 mt-1">Supports variables like {'{{name}}'}</p>
-          </TabsContent>
-
-          <TabsContent value="image" className="mt-0">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Image URL</Label>
-                <Input
-                  placeholder="https://example.com/image.jpg"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
-                <Textarea
-                  placeholder="Image caption..."
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.caption || ''}
-                  onChange={(e) => updateData({ caption: e.target.value })}
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="video" className="mt-0">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Video URL</Label>
-                <Input
-                  placeholder="https://example.com/video.mp4"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
-                <Textarea
-                  placeholder="Video caption..."
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.caption || ''}
-                  onChange={(e) => updateData({ caption: e.target.value })}
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="document" className="mt-0">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Document URL</Label>
-                <Input
-                  placeholder="https://example.com/file.pdf"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Filename</Label>
-                <Input
-                  placeholder="document.pdf"
-                  value={data.fileName || ''}
-                  onChange={(e) => updateData({ fileName: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
-                <Textarea
-                  placeholder="Document caption..."
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.caption || ''}
-                  onChange={(e) => updateData({ caption: e.target.value })}
-                />
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="buttons" className="mt-0">
             <div className="space-y-3">
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Body Text</Label>
+                <Label className="text-xs mb-1.5 block text-gray-500">Question Text</Label>
                 <Textarea
                   placeholder="Please select an option:"
                   className="min-h-[60px] text-sm resize-none"
@@ -243,18 +161,10 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                   onChange={(e) => updateData({ text: e.target.value })}
                 />
               </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Footer (Optional)</Label>
-                <Input
-                  placeholder="Powered by..."
-                  value={data.footer || ''}
-                  onChange={(e) => updateData({ footer: e.target.value })}
-                />
-              </div>
 
               <div className="space-y-2">
                 <Label className="text-xs text-gray-500 flex justify-between items-center">
-                  Buttons (Max 3)
+                  Options (Max 3)
                   <Button
                     variant="ghost"
                     size="sm"
@@ -271,7 +181,7 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                     <Input
                       value={btn.title}
                       onChange={(e) => updateButton(idx, 'title', e.target.value)}
-                      placeholder={`Button ${idx + 1}`}
+                      placeholder={`Option ${idx + 1}`}
                       className="h-8 text-sm"
                     />
                     <Button
@@ -291,7 +201,7 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
           <TabsContent value="list" className="mt-0">
             <div className="space-y-3">
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Body Text</Label>
+                <Label className="text-xs mb-1.5 block text-gray-500">Question Text</Label>
                 <Textarea
                   placeholder="Please select from the list:"
                   className="min-h-[60px] text-sm resize-none"
@@ -400,16 +310,16 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
         type="target"
         position={Position.Left}
         isConnectable={isConnectable}
-        className="w-3 h-3 bg-blue-500"
+        className="w-3 h-3 bg-purple-500"
       />
       <Handle
         type="source"
         position={Position.Right}
         isConnectable={isConnectable}
-        className="w-3 h-3 bg-blue-500"
+        className="w-3 h-3 bg-purple-500"
       />
     </div>
   )
 })
 
-MessageNode.displayName = 'MessageNode'
+QuestionNode.displayName = 'QuestionNode'

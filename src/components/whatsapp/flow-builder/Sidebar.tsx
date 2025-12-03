@@ -1,5 +1,5 @@
 import React from 'react'
-import { MessageSquare, Play, GitFork, Clock, Globe, Mail } from 'lucide-react'
+import { MessageSquare, Play, GitFork, Clock, Globe, Mail, CircleHelp } from 'lucide-react'
 
 export default function Sidebar() {
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
@@ -29,6 +29,15 @@ export default function Sidebar() {
       >
         <Play size={16} className="mr-2 text-green-600" />
         <span className="text-sm font-medium text-gray-700">Start Node</span>
+      </div>
+
+      <div
+        className="flex items-center p-3 border border-gray-300 rounded-md mb-3 cursor-grab bg-white hover:bg-gray-50 shadow-sm transition-colors"
+        onDragStart={(event) => onDragStart(event, 'question')}
+        draggable
+      >
+        <CircleHelp size={16} className="mr-2 text-purple-600" />
+        <span className="text-sm font-medium text-gray-700">Ask Question</span>
       </div>
 
       <div
