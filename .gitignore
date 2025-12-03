@@ -12,6 +12,9 @@
 # testing
 /coverage
 
+
+/needbots
+
 # next.js
 /.next/
 /out/
