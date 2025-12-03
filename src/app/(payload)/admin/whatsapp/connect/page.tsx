@@ -1,12 +1,20 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { getSocket, type WhatsAppQREvent, type WhatsAppConnectedEvent } from '@/lib/socket-client'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, QrCode, CheckCircle2, XCircle } from 'lucide-react'
+import { Loader2, QrCode, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+
+const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+
+// Helper function to create a timeout signal
+const createTimeoutSignal = (timeoutMs: number): AbortSignal => {
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), timeoutMs)
+  return controller.signal
+}
 
 export default function WhatsAppConnectionPage() {
   const [status, setStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected')
@@ -14,275 +22,195 @@ export default function WhatsAppConnectionPage() {
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const connectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const statusPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    // Fetch initial status
+    // Fetch initial status on mount
     fetchStatus()
-
-    // Setup Socket.io listeners
-    const socket = getSocket()
-
-    // Test socket connection
-    socket.emit('test', { message: 'Client test' })
-    socket.on('test-response', (data) => {
-      console.log('✅ Socket test successful:', data)
-    })
-
-    socket.on('whatsapp:qr', (data: WhatsAppQREvent) => {
-      setQrCode(data.qrCode)
-      setStatus('scanning')
-      setLoading(false)
-      setError(null)
-      // Clear any pending timeout
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-    })
-
-    socket.on('whatsapp:connected', (data: WhatsAppConnectedEvent) => {
-      setStatus('connected')
-      setPhoneNumber(data.phoneNumber)
-      setQrCode(null)
-      setLoading(false)
-      setError(null)
-      // Clear any pending timeout
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-    })
-
-    socket.on('whatsapp:disconnected', () => {
-      setStatus('disconnected')
-      setPhoneNumber(null)
-      setQrCode(null)
-      setLoading(false)
-      // Clear any pending timeout
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-    })
-
-    socket.on('whatsapp:error', (data: { error: string; details?: string }) => {
-      console.error('❌ WhatsApp error from server:', data.error)
-      if (data.details) {
-        console.error('❌ Error details:', data.details)
-      }
-      setLoading(false)
-      setStatus('disconnected')
-      setError(data.details || data.error || 'Connection failed')
-      // Clear any pending timeout
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-    })
-
-    socket.on('whatsapp:init-started', (data: { success: boolean }) => {
-      console.log('✅ Server confirmed initialization started:', data)
-    })
-
-    return () => {
-      socket.off('whatsapp:qr')
-      socket.off('whatsapp:connected')
-      socket.off('whatsapp:disconnected')
-      socket.off('whatsapp:error')
-      // Clear any pending timeout on unmount
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-      // Clear any pending status poll interval on unmount
-      if (statusPollIntervalRef.current) {
-        clearInterval(statusPollIntervalRef.current)
-        statusPollIntervalRef.current = null
-      }
-    }
   }, [])
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/whatsapp/status')
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/session/global_session/status`, {
+        signal: createTimeoutSignal(5000), // 5 second timeout
+      })
+      
+      if (!response.ok) {
+        setStatus('disconnected')
+        return
+      }
+
       const data = await response.json()
-      setStatus(data.status)
-      setPhoneNumber(data.phoneNumber)
-      setQrCode(data.qrCode)
+
+      if (data.status === 'connected') {
+        setStatus('connected')
+        // Try to get phone number from sessions list
+        try {
+          const sessionsResponse = await fetch(`${WHATSAPP_SERVICE_URL}/sessions`)
+          const sessionsData = await sessionsResponse.json()
+          const session = sessionsData.sessions?.find((s: any) => s.sessionId === 'global_session')
+          if (session?.phoneNumber) {
+            setPhoneNumber(session.phoneNumber)
+          }
+        } catch (err) {
+          console.error('Error fetching sessions:', err)
+        }
+      } else {
+        setStatus('disconnected')
+      }
     } catch (error) {
       console.error('Error fetching status:', error)
+      setStatus('disconnected')
+      // Only show error if it's not a network error (to avoid showing error on initial load)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        setError(
+          `Cannot connect to WhatsApp service. Please make sure it's running at ${WHATSAPP_SERVICE_URL}`
+        )
+      }
     }
   }
 
-  const handleConnect = async (forceReset: boolean = false) => {
-    // Ensure forceReset is always a boolean
-    const shouldReset = typeof forceReset === 'boolean' ? forceReset : false
-
-    // Clear any existing timeout and intervals
-    if (connectTimeoutRef.current) {
-      clearTimeout(connectTimeoutRef.current)
-      connectTimeoutRef.current = null
-    }
-    if (statusPollIntervalRef.current) {
-      clearInterval(statusPollIntervalRef.current)
-      statusPollIntervalRef.current = null
-    }
-
-    // Reset state
-    if (shouldReset) {
-      setStatus('disconnected')
-      setQrCode(null)
-      setPhoneNumber(null)
-    }
+  const handleConnect = async () => {
     setError(null)
     setLoading(true)
+    setQrCode(null)
 
     try {
-      const resetFlag = Boolean(shouldReset)
-      console.log('🔄 Initiating WhatsApp connection...', { forceReset: resetFlag })
+      // First, check if the service is reachable
+      try {
+        const healthCheck = await fetch(`${WHATSAPP_SERVICE_URL}/sessions`, {
+          method: 'GET',
+          signal: createTimeoutSignal(5000), // 5 second timeout
+        })
+        if (!healthCheck.ok) {
+          throw new Error('Service returned an error')
+        }
+      } catch (healthError) {
+        setLoading(false)
+        setError(
+          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`
+        )
+        return
+      }
 
-      // Call the API endpoint which now triggers initialization
-      const response = await fetch('/api/whatsapp/connect', {
+      // Start the session
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/session/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ forceReset: resetFlag }),
+        body: JSON.stringify({ sessionId: 'global_session' }),
       })
-      const data = await response.json()
-
-      if (!data.success) {
-        console.error('Failed to connect:', data.error)
-        setLoading(false)
-        setStatus('disconnected')
-        setError(data.error || 'Failed to initiate connection')
-        return
+      console.log({ response })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `Server error: ${response.status}`)
       }
 
-      console.log('✅ API call successful, emitting socket event...')
+      const data = await response.json()
+      console.log({ data })
 
-      // Emit socket event to trigger server-side initialization
-      const socket = getSocket()
-      console.log('📡 Emitting whatsapp:request-connect event...', { forceReset: resetFlag })
-      socket.emit('whatsapp:request-connect', { forceReset: resetFlag })
+      // Poll for QR code
+      let attempts = 0
+      const maxAttempts = 20 // 10 seconds
 
-      // Poll status API as a fallback if socket events don't fire
-      let pollCount = 0
-      const maxPolls = 20 // Poll for 10 seconds (20 * 500ms)
-      statusPollIntervalRef.current = setInterval(async () => {
-        pollCount++
+      const pollQRCode = async () => {
         try {
-          const statusResponse = await fetch('/api/whatsapp/status')
-          const statusData = await statusResponse.json()
-
-          // If we get a QR code, update UI
-          if (statusData.qrCode) {
-            console.log('📱 QR code found via status API')
-            setQrCode(statusData.qrCode)
-            setStatus('scanning')
-            setLoading(false)
-            setError(null)
-            if (statusPollIntervalRef.current) {
-              clearInterval(statusPollIntervalRef.current)
-              statusPollIntervalRef.current = null
+          const qrResponse = await fetch(`${WHATSAPP_SERVICE_URL}/session/global_session/qr`)
+          console.log({ qrResponse })
+          if (qrResponse.ok) {
+            const qrData = await qrResponse.json()
+            console.log({ qrData })
+            if (qrData.qr) {
+              setQrCode(qrData.qr)
+              setStatus('scanning')
+              setLoading(false)
+              // Start polling for connection
+              pollConnection()
+              return
             }
-            if (connectTimeoutRef.current) {
-              clearTimeout(connectTimeoutRef.current)
-              connectTimeoutRef.current = null
-            }
-            return
           }
 
-          // If connected, update UI
-          if (statusData.status === 'connected' && statusData.phoneNumber) {
-            console.log('✅ Connected status found via status API')
-            setStatus('connected')
-            setPhoneNumber(statusData.phoneNumber)
-            setQrCode(null)
+          attempts++
+          if (attempts < maxAttempts) {
+            setTimeout(pollQRCode, 500)
+          } else {
             setLoading(false)
-            setError(null)
-            if (statusPollIntervalRef.current) {
-              clearInterval(statusPollIntervalRef.current)
-              statusPollIntervalRef.current = null
-            }
-            if (connectTimeoutRef.current) {
-              clearTimeout(connectTimeoutRef.current)
-              connectTimeoutRef.current = null
-            }
-            return
+            setError('QR code generation timeout. Please try again.')
           }
         } catch (error) {
-          console.error('Error polling status:', error)
-        }
-
-        if (pollCount >= maxPolls) {
-          console.log('Status polling completed')
-          if (statusPollIntervalRef.current) {
-            clearInterval(statusPollIntervalRef.current)
-            statusPollIntervalRef.current = null
+          console.error('Error polling QR code:', error)
+          attempts++
+          if (attempts < maxAttempts) {
+            setTimeout(pollQRCode, 500)
+          } else {
+            setLoading(false)
+            setError('Failed to get QR code. Please try again.')
           }
         }
-      }, 500)
+      }
 
-      // Set a 10-second timeout - if no QR code, show error
-      connectTimeoutRef.current = setTimeout(() => {
-        if (statusPollIntervalRef.current) {
-          clearInterval(statusPollIntervalRef.current)
-          statusPollIntervalRef.current = null
-        }
-        if (loading) {
-          console.warn('Connection timeout - no QR code received')
-          setLoading(false)
-          setStatus('disconnected')
-          setError('Connection timeout. Please try again.')
-        }
-        connectTimeoutRef.current = null
-      }, 10000)
+      pollQRCode()
     } catch (error) {
       console.error('Error connecting:', error)
       setLoading(false)
-      setStatus('disconnected')
-      setError(error instanceof Error ? error.message : 'Failed to connect')
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current)
-        connectTimeoutRef.current = null
-      }
-      if (statusPollIntervalRef.current) {
-        clearInterval(statusPollIntervalRef.current)
-        statusPollIntervalRef.current = null
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        setError(
+          `Cannot connect to WhatsApp service at ${WHATSAPP_SERVICE_URL}. Please make sure the WhatsApp service is running. You can start it by running: npm run dev:whatsapp`
+        )
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to connect')
       }
     }
   }
 
-  const handleCancel = () => {
-    console.log('User cancelled connection')
-    setLoading(false)
-    setError(null)
-    if (connectTimeoutRef.current) {
-      clearTimeout(connectTimeoutRef.current)
-      connectTimeoutRef.current = null
-    }
-    if (statusPollIntervalRef.current) {
-      clearInterval(statusPollIntervalRef.current)
-      statusPollIntervalRef.current = null
-    }
+  const pollConnection = () => {
+    const interval = setInterval(async () => {
+      try {
+        const statusResponse = await fetch(`${WHATSAPP_SERVICE_URL}/session/global_session/status`)
+        const statusData = await statusResponse.json()
+        console.log({ statusData, statusResponse })
+        if (statusData.status === 'connected') {
+          setStatus('connected')
+          setQrCode(null)
+          setLoading(false)
+          clearInterval(interval)
+
+          // Get phone number
+          const sessionsResponse = await fetch(`${WHATSAPP_SERVICE_URL}/sessions`)
+          const sessionsData = await sessionsResponse.json()
+          const session = sessionsData.sessions?.find((s: any) => s.sessionId === 'global_session')
+          if (session?.phoneNumber) {
+            setPhoneNumber(session.phoneNumber)
+          }
+        }
+      } catch (error) {
+        console.error('Error polling connection:', error)
+      }
+    }, 1000)
+
+    // Stop polling after 2 minutes
+    setTimeout(() => clearInterval(interval), 120000)
   }
 
   const handleDisconnect = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/whatsapp/disconnect', { method: 'POST' })
-      const data = await response.json()
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/session/global_session`, {
+        method: 'DELETE',
+      })
 
-      if (data.success) {
+      if (response.ok) {
         setStatus('disconnected')
         setPhoneNumber(null)
         setQrCode(null)
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to disconnect')
       }
     } catch (error) {
       console.error('Error disconnecting:', error)
+      setError('Failed to disconnect')
     } finally {
       setLoading(false)
     }
@@ -331,29 +259,23 @@ export default function WhatsAppConnectionPage() {
           <CardContent>
             <div className="space-y-3">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  {error}
+                <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5" />
+                  <span>{error}</span>
                 </div>
               )}
               <div className="flex gap-3">
                 {status === 'disconnected' && (
-                  <>
-                    <Button onClick={() => handleConnect(false)} disabled={loading}>
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        'Connect WhatsApp'
-                      )}
-                    </Button>
-                    {loading && (
-                      <Button onClick={handleCancel} variant="outline">
-                        Cancel
-                      </Button>
+                  <Button onClick={handleConnect} disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      'Connect WhatsApp'
                     )}
-                  </>
+                  </Button>
                 )}
                 {status === 'connected' && (
                   <>

@@ -21,18 +21,22 @@ export default function SendMessagePage() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/whatsapp/send', {
+      // Call Express WhatsApp service directly
+      const whatsappServiceUrl =
+        process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+      const response = await fetch(`${whatsappServiceUrl}/message/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId: 'global_session', // Using default session
           to: phoneNumber,
-          message: message,
+          text: message,
         }),
       })
 
       const data = await response.json()
 
-      if (data.success) {
+      if (response.ok && data.message) {
         toast({
           title: 'Message sent successfully!',
           description: `Your message was sent to ${phoneNumber}`,

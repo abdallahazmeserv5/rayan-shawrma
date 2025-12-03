@@ -31,14 +31,10 @@ export default async function RootLayout({
   return (
     <html lang={local} dir={local === 'ar' ? 'rtl' : 'ltr'}>
       <body className={`${_alexandra.className} antialiased bg-white`}>
-        <NextIntlClientProvider>
-          <Providers>
-            <HydrationBoundary state={dehydrate(queryClient)}>
-              {children}
-              <ReactQueryDevtools initialIsOpen={false} />
-            </HydrationBoundary>
-          </Providers>
-        </NextIntlClientProvider>
+        <HydrationBoundary state={dehydrate(queryClient)}>
+          {children}
+          <ReactQueryDevtools initialIsOpen={false} />
+        </HydrationBoundary>
       </body>
     </html>
   )

@@ -64,18 +64,6 @@ export const WhatsAppSession: CollectionConfig = {
       },
     },
     {
-      name: 'sessionData',
-      type: 'textarea',
-      label: { en: 'Session Data', ar: 'بيانات الجلسة' },
-      admin: {
-        description: {
-          en: 'Encrypted Baileys auth state (do not modify)',
-          ar: 'حالة المصادقة المشفرة (لا تقم بالتعديل)',
-        },
-        readOnly: true,
-      },
-    },
-    {
       name: 'qrCode',
       type: 'textarea',
       label: { en: 'QR Code', ar: 'رمز الاستجابة السريعة' },

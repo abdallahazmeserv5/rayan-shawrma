@@ -113,7 +113,8 @@ export async function baseFetch({
 // }
 
 export async function sendMessageAPI(data: { to: string; text: string; sessionId: string }) {
-  const res = await fetch('http://localhost:3000/message/send', {
+  const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+  const res = await fetch(`${whatsappServiceUrl}/message/send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

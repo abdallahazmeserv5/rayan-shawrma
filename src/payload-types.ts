@@ -395,10 +395,6 @@ export interface WhatsappSession {
    */
   phoneNumber?: string | null;
   /**
-   * Encrypted Baileys auth state (do not modify)
-   */
-  sessionData?: string | null;
-  /**
    * Base64 QR code image (temporary)
    */
   qrCode?: string | null;
@@ -803,7 +799,6 @@ export interface WhatsappSessionsSelect<T extends boolean = true> {
   sessionId?: T;
   status?: T;
   phoneNumber?: T;
-  sessionData?: T;
   qrCode?: T;
   lastConnectedAt?: T;
   updatedAt?: T;
