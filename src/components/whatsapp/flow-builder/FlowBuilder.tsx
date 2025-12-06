@@ -24,6 +24,14 @@ import { QuestionNode } from './nodes/QuestionNode'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader2, Save } from 'lucide-react'
 
 const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
@@ -47,19 +55,58 @@ const initialNodes: Node[] = [
   },
 ]
 
+interface SessionInfo {
+  sessionId: string
+  status: string
+  isAvailable: boolean
+  assignedToFlow: string | null
+}
+
 const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [flowName, setFlowName] = useState('My Flow')
+  const [keywords, setKeywords] = useState<string>('hello, hi')
+  const [triggerType, setTriggerType] = useState<'keyword' | 'message' | 'event'>('keyword')
+  const [sessionId, setSessionId] = useState<string>('')
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!flowId)
 
   useEffect(() => {
+    // Fetch available sessions
+    fetchAvailableSessions()
+
     if (flowId) {
+      // Edit mode - fetch existing flow data
       fetchFlowData()
+    } else {
+      // Create mode - reset to initial/default state
+      setNodes(initialNodes)
+      setEdges([])
+      setFlowName('My Flow')
+      setKeywords('hello, hi')
+      setTriggerType('keyword')
+      setSessionId('')
+      setLoading(false)
     }
   }, [flowId])
+
+  const fetchAvailableSessions = async () => {
+    try {
+      const url = flowId
+        ? `${WHATSAPP_SERVICE_URL}/api/flows/available-sessions?currentFlowId=${flowId}`
+        : `${WHATSAPP_SERVICE_URL}/api/flows/available-sessions`
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setSessions(data.sessions || [])
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error)
+    }
+  }
 
   const fetchFlowData = async () => {
     try {
@@ -71,6 +118,9 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       setFlowName(data.name)
       if (data.nodes) setNodes(data.nodes)
       if (data.edges) setEdges(data.edges)
+      if (data.keywords) setKeywords(data.keywords.join(', '))
+      if (data.triggerType) setTriggerType(data.triggerType)
+      if (data.sessionId) setSessionId(data.sessionId)
     } catch (error) {
       console.error('Error fetching flow:', error)
       toast.error('Failed to load flow data')
@@ -116,6 +166,17 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       toast.warning(validationError)
     }
 
+    // Parse keywords from comma-separated string
+    const keywordsArray = keywords
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0)
+
+    if (triggerType === 'keyword' && keywordsArray.length === 0) {
+      toast.error('Please enter at least one trigger keyword')
+      return
+    }
+
     const flow = reactFlowInstance.toObject()
     setSaving(true)
 
@@ -133,12 +194,16 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
           name: flowName,
           nodes: flow.nodes,
           edges: flow.edges,
-          triggerType: 'keyword', // Default for now
-          keywords: ['hello', 'hi'], // Default for now
+          triggerType: triggerType,
+          keywords: keywordsArray,
+          sessionId: sessionId || null,
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to save flow')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to save flow')
+      }
 
       toast.success('Flow saved successfully!')
     } catch (error: any) {
@@ -147,7 +212,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
     } finally {
       setSaving(false)
     }
-  }, [reactFlowInstance, flowName, validateFlow, flowId])
+  }, [reactFlowInstance, flowName, keywords, triggerType, sessionId, validateFlow, flowId])
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -195,29 +260,80 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-4">
-          <Input
-            value={flowName}
-            onChange={(e) => setFlowName(e.target.value)}
-            placeholder="Flow name"
-            className="w-64"
-          />
-          <span className="text-xs text-gray-500">Press Delete to remove selected nodes/edges</span>
+      <div className="flex flex-col gap-3 p-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 flex-wrap">
+            <Input
+              value={flowName}
+              onChange={(e) => setFlowName(e.target.value)}
+              placeholder="Flow name"
+              className="w-48"
+            />
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-gray-500 whitespace-nowrap">Session:</Label>
+              <Select
+                value={sessionId || '__none__'}
+                onValueChange={(v) => setSessionId(v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder="Select session" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No session</SelectItem>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.sessionId} value={s.sessionId} disabled={!s.isAvailable}>
+                      {s.sessionId} {s.status === 'connected' ? '✓' : '○'}
+                      {!s.isAvailable && s.assignedToFlow && ` (in use by ${s.assignedToFlow})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-gray-500 whitespace-nowrap">Trigger:</Label>
+              <Select
+                value={triggerType}
+                onValueChange={(v: 'keyword' | 'message' | 'event') => setTriggerType(v)}
+              >
+                <SelectTrigger className="w-28 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="keyword">Keyword</SelectItem>
+                  <SelectItem value="message">Any Message</SelectItem>
+                  <SelectItem value="event">Event</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {triggerType === 'keyword' && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-gray-500 whitespace-nowrap">Keywords:</Label>
+                <Input
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="hi, hello, hey (comma-separated)"
+                  className="w-56"
+                />
+              </div>
+            )}
+          </div>
+          <Button onClick={onSave} disabled={saving} className="bg-green-600 hover:bg-green-700">
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Flow
+              </>
+            )}
+          </Button>
         </div>
-        <Button onClick={onSave} disabled={saving} className="bg-green-600 hover:bg-green-700">
-          {saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Flow
-            </>
-          )}
-        </Button>
+        <span className="text-xs text-gray-500">
+          Drag nodes from the sidebar. Connect Start to Message nodes. Press Delete to remove.
+        </span>
       </div>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -246,9 +362,10 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
 }
 
 export default function FlowBuilder({ flowId }: { flowId?: string }) {
+  // Using key prop to force remount when flowId changes (especially from edit to create)
   return (
     <ReactFlowProvider>
-      <FlowBuilderCanvas flowId={flowId} />
+      <FlowBuilderCanvas key={flowId || 'new'} flowId={flowId} />
     </ReactFlowProvider>
   )
 }

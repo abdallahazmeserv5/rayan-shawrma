@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
 
 interface Flow {
-  id: string
+  _id: string
   name: string
   isActive: boolean
   triggerType: string
@@ -112,7 +112,7 @@ export default function FlowListPage() {
       ) : (
         <div className="grid gap-4">
           {flows.map((flow) => (
-            <Card key={flow.id} className="overflow-hidden">
+            <Card key={flow._id} className="overflow-hidden">
               <CardContent className="p-6 flex items-center justify-between">
                 <div className="flex items-start space-x-4">
                   <div className="p-3 bg-indigo-50 rounded-lg">
@@ -145,7 +145,7 @@ export default function FlowListPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggleFlow(flow.id)}
+                    onClick={() => handleToggleFlow(flow._id)}
                     className={
                       flow.isActive
                         ? 'text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50'
@@ -164,7 +164,7 @@ export default function FlowListPage() {
                       </>
                     )}
                   </Button>
-                  <Link href={`/admin/whatsapp/flows/${flow.id}`}>
+                  <Link href={`/admin/whatsapp/flows/${flow._id}`}>
                     <Button variant="ghost" size="sm">
                       <Edit className="mr-2 h-4 w-4" />
                       Edit
@@ -173,7 +173,7 @@ export default function FlowListPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleDeleteFlow(flow.id)}
+                    onClick={() => handleDeleteFlow(flow._id)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />

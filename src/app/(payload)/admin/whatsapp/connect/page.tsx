@@ -113,7 +113,7 @@ export default function WhatsAppConnectionPage() {
 
       // Poll for QR code
       let attempts = 0
-      const maxAttempts = 20 // 10 seconds
+      const maxAttempts = 120 // 60 seconds
 
       const pollQRCode = async () => {
         try {
