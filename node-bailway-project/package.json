@@ -13,9 +13,10 @@
   "license": "ISC",
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@ryuu-reinzz/button-helper": "^2.2.3",
     "@types/express": "^5.0.5",
     "@types/node": "^24.10.1",
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@whiskeysockets/baileys": "7.0.0-rc.9",
     "axios": "^1.13.2",
     "bullmq": "^5.65.0",
     "cors": "^2.8.5",

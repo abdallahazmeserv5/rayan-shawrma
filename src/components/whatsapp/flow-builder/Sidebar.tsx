@@ -9,6 +9,7 @@ import {
   CircleHelp,
   LayoutGrid,
   List,
+  ListFilter,
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -102,6 +103,15 @@ export default function Sidebar() {
       >
         <List size={16} className="mr-2 text-blue-600" />
         <span className="text-sm font-medium text-gray-700">Send List</span>
+      </div>
+
+      <div
+        className="flex items-center p-3 border border-gray-300 rounded-md mb-3 cursor-grab bg-white hover:bg-gray-50 shadow-sm transition-colors"
+        onDragStart={(event) => onDragStart(event, 'menuResponse')}
+        draggable
+      >
+        <ListFilter size={16} className="mr-2 text-teal-600" />
+        <span className="text-sm font-medium text-gray-700">Menu Response</span>
       </div>
     </aside>
   )

@@ -291,6 +291,25 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Auto-Continue Option */}
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`auto-continue-${id}`}
+              checked={data.autoContinue || false}
+              onChange={(e) => updateData({ autoContinue: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <Label htmlFor={`auto-continue-${id}`} className="text-xs text-gray-600">
+              Continue without waiting for reply
+            </Label>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1 ml-6">
+            Send next message immediately without pausing
+          </p>
+        </div>
       </div>
 
       <Handle

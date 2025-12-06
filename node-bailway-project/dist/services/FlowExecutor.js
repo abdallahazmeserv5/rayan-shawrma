@@ -183,6 +183,9 @@ class FlowExecutor {
                     case 'email':
                         yield this.handleEmailNode(node, execution);
                         break;
+                    case 'menuResponse':
+                        yield this.handleMenuResponseNode(node, execution, flow);
+                        return;
                 }
                 // Message, buttons, and list nodes pause and wait for reply - don't auto-continue
                 if (node.type !== 'condition' &&
@@ -408,12 +411,21 @@ class FlowExecutor {
                 console.error(`[FlowExecutor] Error sending message:`, error);
                 throw error;
             }
-            // Check if there's a next node - if so, pause and wait for reply
+            // Check if there's a next node
             const nextNodeId = this.getNextNodeId(flow, execution.currentNodeId);
             if (nextNodeId) {
-                execution.status = 'paused';
-                yield execution.save();
-                console.log(`[FlowExecutor] Flow paused after message, waiting for user reply`);
+                // Check if autoContinue is enabled - if so, don't wait for reply
+                if (node.data.autoContinue) {
+                    console.log(`[FlowExecutor] autoContinue enabled, proceeding to next node without waiting`);
+                    execution.currentNodeId = nextNodeId;
+                    yield execution.save();
+                    yield this.executeNode(execution.id, nextNodeId);
+                }
+                else {
+                    execution.status = 'paused';
+                    yield execution.save();
+                    console.log(`[FlowExecutor] Flow paused after message, waiting for user reply`);
+                }
             }
             else {
                 // No next node, complete the execution
@@ -475,6 +487,80 @@ class FlowExecutor {
             }
             else {
                 console.log(`No edge found for condition result ${isTrue} from node ${node.id}`);
+                yield this.completeExecution(execution.id);
+            }
+        });
+    }
+    /**
+     * Handle menu response node - routes based on user's reply matching configured options
+     */
+    handleMenuResponseNode(node, execution, flow) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const userMessage = (execution.variables.message || '').trim();
+            const options = node.data.options || [];
+            const matchType = node.data.matchType || 'exact';
+            console.log(`[FlowExecutor] MenuResponse Node ${node.id}: checking "${userMessage}" against ${options.length} options (matchType: ${matchType})`);
+            // Debug: Log all options
+            console.log('[FlowExecutor] Available options:');
+            options.forEach((opt, idx) => {
+                console.log(`  [${idx}] id="${opt.id}" value="${opt.value}" label="${opt.label}"`);
+            });
+            // Debug: Log all edges from this node
+            const nodeEdges = flow.edges.filter((e) => e.source === node.id);
+            console.log('[FlowExecutor] Edges from this node:');
+            nodeEdges.forEach((e) => {
+                console.log(`  sourceHandle="${e.sourceHandle}" -> target="${e.target}"`);
+            });
+            // Find matching option
+            let matchedOption = null;
+            for (const opt of options) {
+                const optValue = (opt.value || '').trim();
+                let isMatch = false;
+                switch (matchType) {
+                    case 'exact':
+                        isMatch = userMessage.toLowerCase() === optValue.toLowerCase();
+                        break;
+                    case 'contains':
+                        isMatch = userMessage.toLowerCase().includes(optValue.toLowerCase());
+                        break;
+                    case 'number':
+                        // For number matching, we check if user typed the number or the exact value
+                        isMatch = userMessage === optValue || userMessage.toLowerCase() === optValue.toLowerCase();
+                        break;
+                    default:
+                        isMatch = userMessage.toLowerCase() === optValue.toLowerCase();
+                }
+                console.log(`[FlowExecutor]   Checking "${optValue}" (${opt.label}): ${isMatch ? '✓ MATCH' : '✗ no match'}`);
+                if (isMatch) {
+                    matchedOption = opt;
+                    console.log(`[FlowExecutor] ✓ Matched option: "${opt.value}" (${opt.label}) with handle "${opt.id}"`);
+                    break;
+                }
+            }
+            // Determine which handle to use
+            const handleId = matchedOption ? matchedOption.id : 'default';
+            console.log(`[FlowExecutor] Using output handle: ${handleId}`);
+            // Find the edge connected to this handle
+            const nextEdge = flow.edges.find((edge) => edge.source === node.id && edge.sourceHandle === handleId);
+            if (nextEdge) {
+                console.log(`[FlowExecutor] Routing to node: ${nextEdge.target}`);
+                execution.currentNodeId = nextEdge.target;
+                yield execution.save();
+                yield this.executeNode(execution.id, nextEdge.target);
+            }
+            else {
+                // If no edge for matched handle, try default
+                if (handleId !== 'default') {
+                    const defaultEdge = flow.edges.find((edge) => edge.source === node.id && edge.sourceHandle === 'default');
+                    if (defaultEdge) {
+                        console.log(`[FlowExecutor] No edge for ${handleId}, falling back to default: ${defaultEdge.target}`);
+                        execution.currentNodeId = defaultEdge.target;
+                        yield execution.save();
+                        yield this.executeNode(execution.id, defaultEdge.target);
+                        return;
+                    }
+                }
+                console.log(`[FlowExecutor] No edge found for handle "${handleId}" from node ${node.id}`);
                 yield this.completeExecution(execution.id);
             }
         });

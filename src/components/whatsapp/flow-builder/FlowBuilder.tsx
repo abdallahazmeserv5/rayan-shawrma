@@ -23,6 +23,7 @@ import { EmailNode } from './nodes/EmailNode'
 import { QuestionNode } from './nodes/QuestionNode'
 import { ButtonNode } from './nodes/ButtonNode'
 import { ListNode } from './nodes/ListNode'
+import { MenuResponseNode } from './nodes/MenuResponseNode'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,6 +50,7 @@ const nodeTypes = {
   email: EmailNode,
   buttons: ButtonNode,
   list: ListNode,
+  menuResponse: MenuResponseNode,
 }
 
 const initialNodes: Node[] = [

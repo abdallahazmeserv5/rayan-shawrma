@@ -32,6 +32,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Flow = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
@@ -56,3 +65,27 @@ const FlowSchema = new mongoose_1.Schema({
 // Removed unique constraint to allow multiple flows with the same sessionId or null
 FlowSchema.index({ sessionId: 1 }, { sparse: true });
 exports.Flow = mongoose_1.default.model('Flow', FlowSchema);
+(() => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        // Wait for mongoose connection to be ready
+        if (mongoose_1.default.connection.readyState !== 1) {
+            yield new Promise((resolve) => {
+                mongoose_1.default.connection.once('connected', resolve);
+            });
+        }
+        const collection = (_a = mongoose_1.default.connection.db) === null || _a === void 0 ? void 0 : _a.collection('flows');
+        if (!collection)
+            return;
+        const indexes = yield collection.indexes().catch(() => []);
+        const uniqueSessionIdIndex = indexes.find((idx) => { var _a; return ((_a = idx.key) === null || _a === void 0 ? void 0 : _a.sessionId) && idx.unique === true; });
+        if (uniqueSessionIdIndex && uniqueSessionIdIndex.name) {
+            console.log(`[Flow Model] ⚠️  Dropping problematic unique index: ${uniqueSessionIdIndex.name}`);
+            yield collection.dropIndex(uniqueSessionIdIndex.name);
+            console.log(`[Flow Model] ✅ Index dropped successfully`);
+        }
+    }
+    catch (_ignore) {
+        // Silently ignore - collection may not exist yet
+    }
+}))();

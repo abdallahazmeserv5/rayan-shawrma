@@ -3,6 +3,7 @@ import { Boom } from '@hapi/boom'
 import { SessionManager } from './SessionManager'
 import pino from 'pino'
 import { MessageContent } from './types/MessageContent'
+import { sendButtons, sendList } from '@ryuu-reinzz/button-helper'
 
 export class WhatsAppClient {
   private socket: WASocket | null = null
@@ -197,47 +198,24 @@ export class WhatsAppClient {
             break
 
           case 'buttons':
-            // Try native flow interactive message with quick_reply buttons
-            const buttonsArray = messageContent.buttons.map((btn) => ({
-              name: 'quick_reply',
-              buttonParamsJson: JSON.stringify({
-                display_text: btn.text,
-                id: btn.id,
-              }),
-            }))
-
-            const nativeButtonPayload = {
-              viewOnceMessage: {
-                message: {
-                  messageContextInfo: {
-                    deviceListMetadata: {},
-                    deviceListMetadataVersion: 2,
-                  },
-                  interactiveMessage: {
-                    body: {
-                      text: messageContent.text,
-                    },
-                    footer: messageContent.footer
-                      ? {
-                          text: messageContent.footer,
-                        }
-                      : undefined,
-                    nativeFlowMessage: {
-                      buttons: buttonsArray,
-                    },
-                  },
-                },
-              },
-            }
-
-            // Try native flow, fall back to simple text if it fails
+            // Use button-helper for proper binary node injection
             try {
-              messagePayload = nativeButtonPayload
-              console.log(`[WhatsAppClient] Attempting native flow buttons for ${jid}`)
-            } catch (nativeError: any) {
+              console.log(`[WhatsAppClient] Using button-helper to send buttons to ${jid}`)
+              await sendButtons(this.socket, jid, {
+                text: messageContent.text,
+                buttons: messageContent.buttons.map((btn) => ({
+                  type: 1, // Quick reply button
+                  displayText: btn.text,
+                  id: btn.id,
+                })),
+                footer: messageContent.footer,
+              })
+              console.log(`[WhatsAppClient] ✓ Buttons sent successfully via button-helper`)
+              return // Exit early on success
+            } catch (helperError: any) {
               console.warn(
-                `[WhatsAppClient] ⚠️ Native flow buttons failed, using text fallback:`,
-                nativeError.message,
+                `[WhatsAppClient] ⚠️ button-helper failed, using text fallback:`,
+                helperError.message,
               )
               // Fallback: Simple text with numbered options
               let fallbackText = messageContent.text + '\n\n'
@@ -252,47 +230,21 @@ export class WhatsAppClient {
             break
 
           case 'list':
-            // Try native flow interactive message with single_select list
-            const nativeListPayload = {
-              viewOnceMessage: {
-                message: {
-                  messageContextInfo: {
-                    deviceListMetadata: {},
-                    deviceListMetadataVersion: 2,
-                  },
-                  interactiveMessage: {
-                    body: {
-                      text: messageContent.text,
-                    },
-                    footer: messageContent.footer
-                      ? {
-                          text: messageContent.footer,
-                        }
-                      : undefined,
-                    nativeFlowMessage: {
-                      buttons: [
-                        {
-                          name: 'single_select',
-                          buttonParamsJson: JSON.stringify({
-                            title: messageContent.buttonText || 'Menu',
-                            sections: messageContent.sections,
-                          }),
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            }
-
-            // Try native flow, fall back to simple text menu if it fails
+            // Use button-helper for proper binary node injection
             try {
-              messagePayload = nativeListPayload
-              console.log(`[WhatsAppClient] Attempting native flow list for ${jid}`)
-            } catch (nativeError: any) {
+              console.log(`[WhatsAppClient] Using button-helper to send list to ${jid}`)
+              await sendList(this.socket, jid, {
+                text: messageContent.text,
+                buttonText: messageContent.buttonText || 'Menu',
+                sections: messageContent.sections,
+                footer: messageContent.footer,
+              })
+              console.log(`[WhatsAppClient] ✓ List sent successfully via button-helper`)
+              return // Exit early on success
+            } catch (helperError: any) {
               console.warn(
-                `[WhatsAppClient] ⚠️ Native flow list failed, using text fallback:`,
-                nativeError.message,
+                `[WhatsAppClient] ⚠️ button-helper sendList failed, using text fallback:`,
+                helperError.message,
               )
               // Fallback: Simple text menu with sections
               let fallbackText = messageContent.text + '\n\n'
