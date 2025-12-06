@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+
 import pino from 'pino'
 
 const logger = pino({ name: 'mongodb' })

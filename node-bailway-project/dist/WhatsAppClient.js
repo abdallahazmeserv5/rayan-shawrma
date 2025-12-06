@@ -103,21 +103,32 @@ class WhatsAppClient {
         });
     }
     sendMessage(to_1, content_1) {
-        return __awaiter(this, arguments, void 0, function* (to, content, maxRetries = 3) {
-            var _a, _b, _c;
+        return __awaiter(this, arguments, void 0, function* (to, content, maxRetries = 5) {
+            var _a, _b, _c, _d;
             if (!this.socket) {
                 throw new Error('Socket not initialized');
             }
             const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-            // Special handling for LID accounts with plain text - bypass MessageContent
+            // Special handling for LID accounts (WhatsApp Channels)
+            // Note: Baileys has LIMITED support for @lid accounts due to tctoken authentication issues
             if (typeof content === 'string' && jid.includes('@lid')) {
-                console.log(`[WhatsAppClient] Sending text to LID account using direct method`);
+                console.log(`[WhatsAppClient] ⚠️  Attempting to send to WhatsApp Channel (LID): ${jid}`);
+                console.log(`[WhatsAppClient] Note: Channels have limited Baileys support. Message may not be delivered.`);
+                // Try sending but don't fail the entire flow if it doesn't work
                 try {
                     yield this.socket.sendMessage(jid, { text: content });
-                    console.log(`[WhatsAppClient] ✓ TEXT sent to ${jid}`);
+                    console.log(`[WhatsAppClient] ✓ TEXT sent to LID account ${jid}`);
                     return;
                 }
                 catch (error) {
+                    // Known Baileys limitation with tctoken for channels
+                    if ((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes('tctoken')) {
+                        console.error(`[WhatsAppClient] ✗ Cannot send to WhatsApp Channel ${jid}: Baileys does not fully support @lid accounts`);
+                        console.error(`[WhatsAppClient] Recommendation: Use regular WhatsApp accounts (@s.whatsapp.net) for flows`);
+                        // Don't throw - just log and return to prevent flow failure
+                        return;
+                    }
+                    // For other errors, throw them
                     console.error(`[WhatsAppClient] ✗ Error sending to LID account:`, error.message);
                     throw error;
                 }
@@ -148,7 +159,7 @@ class WhatsAppClient {
                         case 'audio':
                             messagePayload = {
                                 audio: { url: messageContent.url },
-                                ptt: (_a = messageContent.ptt) !== null && _a !== void 0 ? _a : false,
+                                ptt: (_b = messageContent.ptt) !== null && _b !== void 0 ? _b : false,
                             };
                             break;
                         case 'document':
@@ -219,9 +230,9 @@ class WhatsAppClient {
                 }
                 catch (error) {
                     lastError = error;
-                    const isSessionError = ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('SessionError')) || ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('No sessions'));
+                    const isSessionError = ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('SessionError')) || ((_d = error.message) === null || _d === void 0 ? void 0 : _d.includes('No sessions'));
                     if (isSessionError && attempt < maxRetries) {
-                        const delayMs = Math.pow(2, attempt - 1) * 500;
+                        const delayMs = Math.pow(2, attempt - 1) * 1000; // Increased from 500ms to 1000ms base
                         console.log(`[WhatsAppClient] Attempt ${attempt}/${maxRetries} failed. Retrying in ${delayMs}ms...`);
                         yield new Promise((resolve) => setTimeout(resolve, delayMs));
                         continue;

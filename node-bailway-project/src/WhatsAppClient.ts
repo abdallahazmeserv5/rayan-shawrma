@@ -84,20 +84,38 @@ export class WhatsAppClient {
     })
   }
 
-  async sendMessage(to: string, content: string | MessageContent, maxRetries = 3) {
+  async sendMessage(to: string, content: string | MessageContent, maxRetries = 5) {
     if (!this.socket) {
       throw new Error('Socket not initialized')
     }
     const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`
 
-    // Special handling for LID accounts with plain text - bypass MessageContent
+    // Special handling for LID accounts (WhatsApp Channels)
+    // Note: Baileys has LIMITED support for @lid accounts due to tctoken authentication issues
     if (typeof content === 'string' && jid.includes('@lid')) {
-      console.log(`[WhatsAppClient] Sending text to LID account using direct method`)
+      console.log(`[WhatsAppClient] ⚠️  Attempting to send to WhatsApp Channel (LID): ${jid}`)
+      console.log(
+        `[WhatsAppClient] Note: Channels have limited Baileys support. Message may not be delivered.`,
+      )
+
+      // Try sending but don't fail the entire flow if it doesn't work
       try {
         await this.socket.sendMessage(jid, { text: content })
-        console.log(`[WhatsAppClient] ✓ TEXT sent to ${jid}`)
+        console.log(`[WhatsAppClient] ✓ TEXT sent to LID account ${jid}`)
         return
       } catch (error: any) {
+        // Known Baileys limitation with tctoken for channels
+        if (error.message?.includes('tctoken')) {
+          console.error(
+            `[WhatsAppClient] ✗ Cannot send to WhatsApp Channel ${jid}: Baileys does not fully support @lid accounts`,
+          )
+          console.error(
+            `[WhatsAppClient] Recommendation: Use regular WhatsApp accounts (@s.whatsapp.net) for flows`,
+          )
+          // Don't throw - just log and return to prevent flow failure
+          return
+        }
+        // For other errors, throw them
         console.error(`[WhatsAppClient] ✗ Error sending to LID account:`, error.message)
         throw error
       }
@@ -220,7 +238,7 @@ export class WhatsAppClient {
           error.message?.includes('SessionError') || error.message?.includes('No sessions')
 
         if (isSessionError && attempt < maxRetries) {
-          const delayMs = Math.pow(2, attempt - 1) * 500
+          const delayMs = Math.pow(2, attempt - 1) * 1000 // Increased from 500ms to 1000ms base
           console.log(
             `[WhatsAppClient] Attempt ${attempt}/${maxRetries} failed. Retrying in ${delayMs}ms...`,
           )

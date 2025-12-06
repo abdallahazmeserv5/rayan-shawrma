@@ -1,5 +1,15 @@
 import React from 'react'
-import { MessageSquare, Play, GitFork, Clock, Globe, Mail, CircleHelp } from 'lucide-react'
+import {
+  MessageSquare,
+  Play,
+  GitFork,
+  Clock,
+  Globe,
+  Mail,
+  CircleHelp,
+  LayoutGrid,
+  List,
+} from 'lucide-react'
 
 export default function Sidebar() {
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
@@ -74,6 +84,24 @@ export default function Sidebar() {
       >
         <Mail size={16} className="mr-2 text-red-600" />
         <span className="text-sm font-medium text-gray-700">Send Email</span>
+      </div>
+
+      <div
+        className="flex items-center p-3 border border-gray-300 rounded-md mb-3 cursor-grab bg-white hover:bg-gray-50 shadow-sm transition-colors"
+        onDragStart={(event) => onDragStart(event, 'buttons')}
+        draggable
+      >
+        <LayoutGrid size={16} className="mr-2 text-purple-600" />
+        <span className="text-sm font-medium text-gray-700">Send Buttons</span>
+      </div>
+
+      <div
+        className="flex items-center p-3 border border-gray-300 rounded-md mb-3 cursor-grab bg-white hover:bg-gray-50 shadow-sm transition-colors"
+        onDragStart={(event) => onDragStart(event, 'list')}
+        draggable
+      >
+        <List size={16} className="mr-2 text-blue-600" />
+        <span className="text-sm font-medium text-gray-700">Send List</span>
       </div>
     </aside>
   )

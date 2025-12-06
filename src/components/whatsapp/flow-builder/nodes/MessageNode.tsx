@@ -5,25 +5,15 @@ import {
   Image as ImageIcon,
   Video,
   FileText,
-  List,
-  MousePointerClick,
-  Plus,
-  Trash,
-  GripVertical,
+  Mic,
+  MapPin,
+  User,
+  BarChart3,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Card, CardContent } from '@/components/ui/card'
 
 export const MessageNode = memo(({ id, data, isConnectable }: any) => {
   const { setNodes } = useReactFlow()
@@ -53,67 +43,6 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
     updateData({ messageType: value })
   }
 
-  const addButton = () => {
-    const buttons = data.buttons || []
-    if (buttons.length < 3) {
-      updateData({
-        buttons: [...buttons, { id: Date.now().toString(), type: 'reply', title: '' }],
-      })
-    }
-  }
-
-  const updateButton = (index: number, field: string, value: string) => {
-    const buttons = [...(data.buttons || [])]
-    buttons[index] = { ...buttons[index], [field]: value }
-    updateData({ buttons })
-  }
-
-  const removeButton = (index: number) => {
-    const buttons = [...(data.buttons || [])]
-    buttons.splice(index, 1)
-    updateData({ buttons })
-  }
-
-  const addListSection = () => {
-    const sections = data.sections || []
-    updateData({
-      sections: [...sections, { title: '', rows: [] }],
-    })
-  }
-
-  const updateSectionTitle = (index: number, title: string) => {
-    const sections = [...(data.sections || [])]
-    sections[index] = { ...sections[index], title }
-    updateData({ sections })
-  }
-
-  const addListRow = (sectionIndex: number) => {
-    const sections = [...(data.sections || [])]
-    sections[sectionIndex].rows.push({ title: '', description: '', id: Date.now().toString() })
-    updateData({ sections })
-  }
-
-  const updateListRow = (sectionIndex: number, rowIndex: number, field: string, value: string) => {
-    const sections = [...(data.sections || [])]
-    sections[sectionIndex].rows[rowIndex] = {
-      ...sections[sectionIndex].rows[rowIndex],
-      [field]: value,
-    }
-    updateData({ sections })
-  }
-
-  const removeListRow = (sectionIndex: number, rowIndex: number) => {
-    const sections = [...(data.sections || [])]
-    sections[sectionIndex].rows.splice(rowIndex, 1)
-    updateData({ sections })
-  }
-
-  const removeSection = (index: number) => {
-    const sections = [...(data.sections || [])]
-    sections.splice(index, 1)
-    updateData({ sections })
-  }
-
   return (
     <div className="w-[350px] bg-white rounded-lg border border-gray-200 shadow-md overflow-hidden">
       <div className="bg-gray-50 p-3 border-b border-gray-200 flex items-center justify-between handle drag-handle cursor-move">
@@ -126,7 +55,7 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
 
       <div className="p-4">
         <Tabs value={messageType} onValueChange={handleTypeChange} className="w-full">
-          <TabsList className="grid grid-cols-6 mb-4 h-auto p-1">
+          <TabsList className="grid grid-cols-4 mb-4 h-auto p-1">
             <TabsTrigger value="text" title="Text">
               <FileText size={14} />
             </TabsTrigger>
@@ -139,11 +68,19 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
             <TabsTrigger value="document" title="Document">
               <FileText size={14} className="text-blue-500" />
             </TabsTrigger>
-            <TabsTrigger value="buttons" title="Buttons">
-              <MousePointerClick size={14} />
+          </TabsList>
+          <TabsList className="grid grid-cols-4 mb-4 h-auto p-1 mt-2">
+            <TabsTrigger value="audio" title="Audio">
+              <Mic size={14} />
             </TabsTrigger>
-            <TabsTrigger value="list" title="List">
-              <List size={14} />
+            <TabsTrigger value="location" title="Location">
+              <MapPin size={14} />
+            </TabsTrigger>
+            <TabsTrigger value="contact" title="Contact">
+              <User size={14} />
+            </TabsTrigger>
+            <TabsTrigger value="poll" title="Poll">
+              <BarChart3 size={14} />
             </TabsTrigger>
           </TabsList>
 
@@ -164,12 +101,12 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                 <Label className="text-xs mb-1.5 block text-gray-500">Image URL</Label>
                 <Input
                   placeholder="https://example.com/image.jpg"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
+                  value={data.url || ''}
+                  onChange={(e) => updateData({ url: e.target.value })}
                 />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
+                <Label className="text-xs mb-1.5 block text-gray-500">Caption (Optional)</Label>
                 <Textarea
                   placeholder="Image caption..."
                   className="min-h-[60px] text-sm resize-none"
@@ -186,12 +123,12 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                 <Label className="text-xs mb-1.5 block text-gray-500">Video URL</Label>
                 <Input
                   placeholder="https://example.com/video.mp4"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
+                  value={data.url || ''}
+                  onChange={(e) => updateData({ url: e.target.value })}
                 />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
+                <Label className="text-xs mb-1.5 block text-gray-500">Caption (Optional)</Label>
                 <Textarea
                   placeholder="Video caption..."
                   className="min-h-[60px] text-sm resize-none"
@@ -208,8 +145,8 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                 <Label className="text-xs mb-1.5 block text-gray-500">Document URL</Label>
                 <Input
                   placeholder="https://example.com/file.pdf"
-                  value={data.mediaUrl || ''}
-                  onChange={(e) => updateData({ mediaUrl: e.target.value })}
+                  value={data.url || ''}
+                  onChange={(e) => updateData({ url: e.target.value })}
                 />
               </div>
               <div>
@@ -221,175 +158,135 @@ export const MessageNode = memo(({ id, data, isConnectable }: any) => {
                 />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Caption</Label>
-                <Textarea
-                  placeholder="Document caption..."
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.caption || ''}
-                  onChange={(e) => updateData({ caption: e.target.value })}
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="buttons" className="mt-0">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Body Text</Label>
-                <Textarea
-                  placeholder="Please select an option:"
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.text || ''}
-                  onChange={(e) => updateData({ text: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Footer (Optional)</Label>
+                <Label className="text-xs mb-1.5 block text-gray-500">MIME Type (Optional)</Label>
                 <Input
-                  placeholder="Powered by..."
-                  value={data.footer || ''}
-                  onChange={(e) => updateData({ footer: e.target.value })}
+                  placeholder="application/pdf"
+                  value={data.mimetype || ''}
+                  onChange={(e) => updateData({ mimetype: e.target.value })}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-gray-500 flex justify-between items-center">
-                  Buttons (Max 3)
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0"
-                    onClick={addButton}
-                    disabled={(data.buttons?.length || 0) >= 3}
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </Label>
-
-                {(data.buttons || []).map((btn: any, idx: number) => (
-                  <div key={idx} className="flex gap-2">
-                    <Input
-                      value={btn.title}
-                      onChange={(e) => updateButton(idx, 'title', e.target.value)}
-                      placeholder={`Button ${idx + 1}`}
-                      className="h-8 text-sm"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => removeButton(idx)}
-                    >
-                      <Trash size={14} />
-                    </Button>
-                  </div>
-                ))}
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="list" className="mt-0">
+          <TabsContent value="audio" className="mt-0">
             <div className="space-y-3">
               <div>
-                <Label className="text-xs mb-1.5 block text-gray-500">Body Text</Label>
-                <Textarea
-                  placeholder="Please select from the list:"
-                  className="min-h-[60px] text-sm resize-none"
-                  value={data.text || ''}
-                  onChange={(e) => updateData({ text: e.target.value })}
+                <Label className="text-xs mb-1.5 block text-gray-500">Audio URL</Label>
+                <Input
+                  placeholder="https://example.com/audio.mp3"
+                  value={data.url || ''}
+                  onChange={(e) => updateData({ url: e.target.value })}
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="ptt-checkbox"
+                  checked={data.ptt || false}
+                  onChange={(e) => updateData({ ptt: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="ptt-checkbox" className="text-xs text-gray-500">
+                  Play as voice message (PTT)
+                </Label>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="location" className="mt-0">
+            <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs mb-1.5 block text-gray-500">Button Text</Label>
+                  <Label className="text-xs mb-1.5 block text-gray-500">Latitude</Label>
                   <Input
-                    placeholder="Menu"
-                    value={data.buttonText || ''}
-                    onChange={(e) => updateData({ buttonText: e.target.value })}
+                    type="number"
+                    step="any"
+                    placeholder="31.5"
+                    value={data.latitude || ''}
+                    onChange={(e) => updateData({ latitude: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label className="text-xs mb-1.5 block text-gray-500">Title</Label>
+                  <Label className="text-xs mb-1.5 block text-gray-500">Longitude</Label>
                   <Input
-                    placeholder="List Title"
-                    value={data.title || ''}
-                    onChange={(e) => updateData({ title: e.target.value })}
+                    type="number"
+                    step="any"
+                    placeholder="34.5"
+                    value={data.longitude || ''}
+                    onChange={(e) => updateData({ longitude: e.target.value })}
                   />
                 </div>
               </div>
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">
+                  Location Name (Optional)
+                </Label>
+                <Input
+                  placeholder="Restaurant Name"
+                  value={data.name || ''}
+                  onChange={(e) => updateData({ name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">Address (Optional)</Label>
+                <Input
+                  placeholder="123 Main St, City"
+                  value={data.address || ''}
+                  onChange={(e) => updateData({ address: e.target.value })}
+                />
+              </div>
+            </div>
+          </TabsContent>
 
-              <div className="space-y-3 mt-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs text-gray-500">Sections</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 text-xs"
-                    onClick={addListSection}
-                  >
-                    <Plus size={12} className="mr-1" /> Add Section
-                  </Button>
-                </div>
+          <TabsContent value="contact" className="mt-0">
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">vCard Data</Label>
+                <Textarea
+                  placeholder={`BEGIN:VCARD\nVERSION:3.0\nFN:John Doe\nTEL:+1234567890\nEND:VCARD`}
+                  className="min-h-[120px] text-sm resize-none font-mono"
+                  value={data.vcard || ''}
+                  onChange={(e) => updateData({ vcard: e.target.value })}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Enter vCard format contact information
+                </p>
+              </div>
+            </div>
+          </TabsContent>
 
-                {(data.sections || []).map((section: any, sIdx: number) => (
-                  <Card key={sIdx} className="p-2 bg-gray-50">
-                    <div className="flex gap-2 mb-2">
-                      <Input
-                        value={section.title}
-                        onChange={(e) => updateSectionTitle(sIdx, e.target.value)}
-                        placeholder="Section Title"
-                        className="h-7 text-sm bg-white"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-red-500"
-                        onClick={() => removeSection(sIdx)}
-                      >
-                        <Trash size={14} />
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2 pl-2 border-l-2 border-gray-200">
-                      {(section.rows || []).map((row: any, rIdx: number) => (
-                        <div key={rIdx} className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-1">
-                            <Input
-                              value={row.title}
-                              onChange={(e) => updateListRow(sIdx, rIdx, 'title', e.target.value)}
-                              placeholder="Row Title"
-                              className="h-7 text-sm bg-white"
-                            />
-                            <Input
-                              value={row.description}
-                              onChange={(e) =>
-                                updateListRow(sIdx, rIdx, 'description', e.target.value)
-                              }
-                              placeholder="Description (optional)"
-                              className="h-7 text-xs bg-white text-gray-500"
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-500 mt-1"
-                            onClick={() => removeListRow(sIdx, rIdx)}
-                          >
-                            <Trash size={12} />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full h-6 text-xs text-gray-500 hover:text-gray-900"
-                        onClick={() => addListRow(sIdx)}
-                      >
-                        <Plus size={12} className="mr-1" /> Add Row
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+          <TabsContent value="poll" className="mt-0">
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">Poll Question</Label>
+                <Input
+                  placeholder="What's your favorite color?"
+                  value={data.name || ''}
+                  onChange={(e) => updateData({ name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">
+                  Options (comma-separated)
+                </Label>
+                <Textarea
+                  placeholder="Red, Blue, Green, Yellow"
+                  className="min-h-[80px] text-sm resize-none"
+                  value={(data.options || []).join(', ')}
+                  onChange={(e) =>
+                    updateData({ options: e.target.value.split(',').map((s) => s.trim()) })
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block text-gray-500">Max Selections</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  value={data.selectableCount || 1}
+                  onChange={(e) => updateData({ selectableCount: parseInt(e.target.value) || 1 })}
+                />
               </div>
             </div>
           </TabsContent>

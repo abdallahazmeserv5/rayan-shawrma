@@ -21,17 +21,20 @@ import { DelayNode } from './nodes/DelayNode'
 import { HttpRequestNode } from './nodes/HttpRequestNode'
 import { EmailNode } from './nodes/EmailNode'
 import { QuestionNode } from './nodes/QuestionNode'
+import { ButtonNode } from './nodes/ButtonNode'
+import { ListNode } from './nodes/ListNode'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+// Commented out - only needed if you uncomment trigger/keyword selectors
+// import { Label } from '@/components/ui/label'
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
 import { Loader2, Save } from 'lucide-react'
 
 const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
@@ -44,6 +47,8 @@ const nodeTypes = {
   delay: DelayNode,
   http: HttpRequestNode,
   email: EmailNode,
+  buttons: ButtonNode,
+  list: ListNode,
 }
 
 const initialNodes: Node[] = [
@@ -62,6 +67,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
   const [flowName, setFlowName] = useState('My Flow')
   const [keywords, setKeywords] = useState<string>('hello, hi')
   const [triggerType, setTriggerType] = useState<'keyword' | 'message' | 'event'>('keyword')
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!flowId)
 
@@ -74,8 +80,9 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       setNodes(initialNodes)
       setEdges([])
       setFlowName('My Flow')
-      setKeywords('hello, hi')
-      setTriggerType('keyword')
+      setKeywords('')
+      setTriggerType('message') // Default to 'message' = respond to any message
+      setSessionId(null)
       setLoading(false)
     }
   }, [flowId])
@@ -92,6 +99,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       if (data.edges) setEdges(data.edges)
       if (data.keywords) setKeywords(data.keywords.join(', '))
       if (data.triggerType) setTriggerType(data.triggerType)
+      if (data.sessionId !== undefined) setSessionId(data.sessionId)
     } catch (error) {
       console.error('Error fetching flow:', error)
       toast.error('Failed to load flow data')
@@ -137,16 +145,17 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       toast.warning(validationError)
     }
 
-    // Parse keywords from comma-separated string
+    // Parse keywords from comma-separated string (only used if keyword trigger is selected)
     const keywordsArray = keywords
       .split(',')
       .map((k) => k.trim())
       .filter((k) => k.length > 0)
 
-    if (triggerType === 'keyword' && keywordsArray.length === 0) {
-      toast.error('Please enter at least one trigger keyword')
-      return
-    }
+    // Removed keyword requirement - now flows respond to any message by default
+    // if (triggerType === 'keyword' && keywordsArray.length === 0) {
+    //   toast.error('Please enter at least one trigger keyword')
+    //   return
+    // }
 
     const flow = reactFlowInstance.toObject()
     setSaving(true)
@@ -167,6 +176,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
           edges: flow.edges,
           triggerType: triggerType,
           keywords: keywordsArray,
+          sessionId: sessionId,
         }),
       })
 
@@ -182,7 +192,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
     } finally {
       setSaving(false)
     }
-  }, [reactFlowInstance, flowName, keywords, triggerType, validateFlow, flowId])
+  }, [reactFlowInstance, flowName, keywords, triggerType, sessionId, validateFlow, flowId])
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -240,6 +250,9 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
               className="w-48"
             />
 
+            {/* Hidden trigger type - always set to 'message' for simplicity */}
+            {/* Uncomment below if you want to show trigger selection */}
+            {/*
             <div className="flex items-center gap-2">
               <Label className="text-xs text-gray-500 whitespace-nowrap">Trigger:</Label>
               <Select
@@ -267,6 +280,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
                 />
               </div>
             )}
+            */}
           </div>
           <Button onClick={onSave} disabled={saving} className="bg-green-600 hover:bg-green-700">
             {saving ? (
