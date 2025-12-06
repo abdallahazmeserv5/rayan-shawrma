@@ -55,13 +55,6 @@ const initialNodes: Node[] = [
   },
 ]
 
-interface SessionInfo {
-  sessionId: string
-  status: string
-  isAvailable: boolean
-  assignedToFlow: string | null
-}
-
 const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -69,15 +62,10 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
   const [flowName, setFlowName] = useState('My Flow')
   const [keywords, setKeywords] = useState<string>('hello, hi')
   const [triggerType, setTriggerType] = useState<'keyword' | 'message' | 'event'>('keyword')
-  const [sessionId, setSessionId] = useState<string>('')
-  const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!flowId)
 
   useEffect(() => {
-    // Fetch available sessions
-    fetchAvailableSessions()
-
     if (flowId) {
       // Edit mode - fetch existing flow data
       fetchFlowData()
@@ -88,25 +76,9 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       setFlowName('My Flow')
       setKeywords('hello, hi')
       setTriggerType('keyword')
-      setSessionId('')
       setLoading(false)
     }
   }, [flowId])
-
-  const fetchAvailableSessions = async () => {
-    try {
-      const url = flowId
-        ? `${WHATSAPP_SERVICE_URL}/api/flows/available-sessions?currentFlowId=${flowId}`
-        : `${WHATSAPP_SERVICE_URL}/api/flows/available-sessions`
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setSessions(data.sessions || [])
-      }
-    } catch (error) {
-      console.error('Error fetching sessions:', error)
-    }
-  }
 
   const fetchFlowData = async () => {
     try {
@@ -120,7 +92,6 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
       if (data.edges) setEdges(data.edges)
       if (data.keywords) setKeywords(data.keywords.join(', '))
       if (data.triggerType) setTriggerType(data.triggerType)
-      if (data.sessionId) setSessionId(data.sessionId)
     } catch (error) {
       console.error('Error fetching flow:', error)
       toast.error('Failed to load flow data')
@@ -196,7 +167,6 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
           edges: flow.edges,
           triggerType: triggerType,
           keywords: keywordsArray,
-          sessionId: sessionId || null,
         }),
       })
 
@@ -212,7 +182,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
     } finally {
       setSaving(false)
     }
-  }, [reactFlowInstance, flowName, keywords, triggerType, sessionId, validateFlow, flowId])
+  }, [reactFlowInstance, flowName, keywords, triggerType, validateFlow, flowId])
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -269,26 +239,7 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
               placeholder="Flow name"
               className="w-48"
             />
-            <div className="flex items-center gap-2">
-              <Label className="text-xs text-gray-500 whitespace-nowrap">Session:</Label>
-              <Select
-                value={sessionId || '__none__'}
-                onValueChange={(v) => setSessionId(v === '__none__' ? '' : v)}
-              >
-                <SelectTrigger className="w-40 h-9">
-                  <SelectValue placeholder="Select session" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No session</SelectItem>
-                  {sessions.map((s) => (
-                    <SelectItem key={s.sessionId} value={s.sessionId} disabled={!s.isAvailable}>
-                      {s.sessionId} {s.status === 'connected' ? '✓' : '○'}
-                      {!s.isAvailable && s.assignedToFlow && ` (in use by ${s.assignedToFlow})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
             <div className="flex items-center gap-2">
               <Label className="text-xs text-gray-500 whitespace-nowrap">Trigger:</Label>
               <Select

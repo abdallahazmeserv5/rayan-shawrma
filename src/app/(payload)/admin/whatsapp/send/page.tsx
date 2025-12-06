@@ -1,34 +1,79 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Send, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
+const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+
+interface Session {
+  sessionId: string
+  status: string
+}
+
 export default function SendMessagePage() {
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [selectedSession, setSelectedSession] = useState<string>('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
+  useEffect(() => {
+    fetchSessions()
+  }, [])
+
+  const fetchSessions = async () => {
+    try {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/api/sessions`)
+      if (response.ok) {
+        const data = await response.json()
+        const connectedSessions =
+          data.sessions?.filter((s: Session) => s.status === 'connected') || []
+        setSessions(connectedSessions)
+        // Auto-select first connected session
+        if (connectedSessions.length > 0 && !selectedSession) {
+          setSelectedSession(connectedSessions[0].sessionId)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error)
+    }
+  }
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!selectedSession) {
+      toast({
+        title: 'No session selected',
+        description: 'Please select a WhatsApp session first',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
-      // Call Express WhatsApp service directly
-      const whatsappServiceUrl =
-        process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
-      const response = await fetch(`${whatsappServiceUrl}/message/send`, {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/message/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: 'global_session', // Using default session
+          sessionId: selectedSession,
           to: phoneNumber,
           text: message,
         }),
@@ -84,6 +129,43 @@ export default function SendMessagePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSend} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="session">WhatsApp Session</Label>
+              <Select value={selectedSession} onValueChange={setSelectedSession}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessions.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No connected sessions
+                    </SelectItem>
+                  ) : (
+                    sessions.map((s) => (
+                      <SelectItem key={s.sessionId} value={s.sessionId}>
+                        {s.sessionId} ✓
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                {sessions.length === 0 ? (
+                  <>
+                    No connected sessions.{' '}
+                    <Link
+                      href="/admin/whatsapp/connect"
+                      className="text-indigo-600 hover:underline"
+                    >
+                      Connect a session first
+                    </Link>
+                  </>
+                ) : (
+                  `Using session: ${selectedSession || 'None'}`
+                )}
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Phone Number</Label>
               <Input
