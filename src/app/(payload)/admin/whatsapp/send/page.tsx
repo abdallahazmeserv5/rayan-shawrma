@@ -38,18 +38,18 @@ export default function SendMessagePage() {
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/api/sessions`)
-      if (response.ok) {
-        const data = await response.json()
-        const connectedSessions =
-          data.sessions?.filter((s: Session) => s.status === 'connected') || []
-        setSessions(connectedSessions)
-        // Auto-select first connected session
-        if (connectedSessions.length > 0 && !selectedSession) {
-          setSelectedSession(connectedSessions[0].sessionId)
-        }
+      const { apiFetch } = await import('@/lib/api')
+      const response = await apiFetch(`${WHATSAPP_SERVICE_URL}/api/sessions`)
+      const data = await response.json()
+      const connectedSessions =
+        data.sessions?.filter((s: Session) => s.status === 'connected') || []
+      setSessions(connectedSessions)
+      // Auto-select first connected session
+      if (connectedSessions.length > 0 && !selectedSession) {
+        setSelectedSession(connectedSessions[0].sessionId)
       }
     } catch (error) {
+      // Error toast already shown by apiFetch
       console.error('Failed to fetch sessions:', error)
     }
   }
@@ -69,7 +69,8 @@ export default function SendMessagePage() {
     setLoading(true)
 
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/message/send`, {
+      const { apiFetch } = await import('@/lib/api')
+      const response = await apiFetch(`${WHATSAPP_SERVICE_URL}/message/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,26 +82,17 @@ export default function SendMessagePage() {
 
       const data = await response.json()
 
-      if (response.ok && data.message) {
+      if (data.message) {
         toast({
           title: 'Message sent successfully!',
           description: `Your message was sent to ${phoneNumber}`,
         })
         // Clear form
         setMessage('')
-      } else {
-        toast({
-          title: 'Failed to send message',
-          description: data.error || 'An error occurred',
-          variant: 'destructive',
-        })
       }
-    } catch (_error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to send message. Please try again.',
-        variant: 'destructive',
-      })
+    } catch (error) {
+      // Error toast already shown by apiFetch
+      console.error('Failed to send message:', error)
     } finally {
       setLoading(false)
     }

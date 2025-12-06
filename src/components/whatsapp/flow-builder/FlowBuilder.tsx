@@ -161,13 +161,14 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
     setSaving(true)
 
     try {
+      const { apiFetch } = await import('@/lib/api')
       const url = flowId
         ? `${WHATSAPP_SERVICE_URL}/api/flows/${flowId}`
         : `${WHATSAPP_SERVICE_URL}/api/flows`
 
       const method = flowId ? 'PUT' : 'POST'
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,15 +181,12 @@ const FlowBuilderCanvas = ({ flowId }: { flowId?: string }) => {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to save flow')
-      }
-
+      // If apiFetch succeeds, response is OK
+      await response.json()
       toast.success('Flow saved successfully!')
     } catch (error: any) {
+      // Error toast already shown by apiFetch
       console.error('Save error:', error)
-      toast.error(`Failed to save: ${error.message}`)
     } finally {
       setSaving(false)
     }
