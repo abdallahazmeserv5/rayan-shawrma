@@ -1,0 +1,39 @@
+{
+  "name": "whatsapp-service",
+  "version": "1.0.0",
+  "description": "Express WhatsApp service using Baileys - handles all WhatsApp operations",
+  "main": "dist/server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsc && node dist/server.js",
+    "dev": "nodemon --watch src -e ts --exec \"npx tsc && node dist/server.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "axios": "^1.13.2",
+    "bullmq": "^5.65.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "ioredis": "^5.8.2",
+    "mongoose": "^8.8.4",
+    "nodemailer": "^7.0.11",
+    "nodemon": "^3.1.11",
+    "pino": "^10.1.0",
+    "qrcode-terminal": "^0.12.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/mongoose": "^5.11.97",
+    "@types/nodemailer": "^7.0.4",
+    "@types/qrcode-terminal": "^0.12.2"
+  }
+}

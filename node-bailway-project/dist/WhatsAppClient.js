@@ -1,0 +1,256 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.WhatsAppClient = void 0;
+const baileys_1 = __importStar(require("@whiskeysockets/baileys"));
+const pino_1 = __importDefault(require("pino"));
+class WhatsAppClient {
+    constructor(sessionId, sessionManager, qrCallback, statusCallback, messageCallback) {
+        this.socket = null;
+        this.sessionId = sessionId;
+        this.sessionManager = sessionManager;
+        this.qrCallback = qrCallback;
+        this.statusCallback = statusCallback;
+        this.messageCallback = messageCallback;
+    }
+    initialize() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { state, saveCreds } = yield this.sessionManager.getAuthState(this.sessionId);
+            this.socket = (0, baileys_1.default)({
+                auth: state,
+                printQRInTerminal: false,
+                logger: (0, pino_1.default)({ level: 'silent' }),
+            });
+            this.socket.ev.on('creds.update', saveCreds);
+            this.socket.ev.on('messages.upsert', (m) => __awaiter(this, void 0, void 0, function* () {
+                if (m.type === 'notify' && this.messageCallback) {
+                    for (const msg of m.messages) {
+                        if (!msg.key.fromMe) {
+                            this.messageCallback(msg);
+                        }
+                    }
+                }
+            }));
+            this.socket.ev.on('connection.update', (update) => __awaiter(this, void 0, void 0, function* () {
+                var _a, _b, _c, _d, _e, _f, _g;
+                const { connection, lastDisconnect, qr } = update;
+                if (qr && this.qrCallback) {
+                    this.qrCallback(qr);
+                }
+                if (connection === 'close') {
+                    const shouldReconnect = ((_b = (_a = lastDisconnect === null || lastDisconnect === void 0 ? void 0 : lastDisconnect.error) === null || _a === void 0 ? void 0 : _a.output) === null || _b === void 0 ? void 0 : _b.statusCode) !== baileys_1.DisconnectReason.loggedOut;
+                    console.log(`Connection closed due to ${lastDisconnect === null || lastDisconnect === void 0 ? void 0 : lastDisconnect.error}, reconnecting: ${shouldReconnect}`);
+                    if (this.statusCallback)
+                        this.statusCallback('disconnected');
+                    yield this.sessionManager.updateSessionStatus(this.sessionId, 'disconnected');
+                    if (shouldReconnect) {
+                        this.initialize();
+                    }
+                }
+                else if (connection === 'open') {
+                    console.log(`Session ${this.sessionId} opened successfully`);
+                    if (this.statusCallback)
+                        this.statusCallback('connected');
+                    const phoneNumber = ((_e = (_d = (_c = this.socket) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.id) === null || _e === void 0 ? void 0 : _e.split(':')[0]) || null;
+                    const name = ((_g = (_f = this.socket) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.name) || null;
+                    yield this.sessionManager.updateSessionStatus(this.sessionId, 'connected', phoneNumber || undefined, name || undefined);
+                }
+            }));
+        });
+    }
+    sendMessage(to_1, content_1) {
+        return __awaiter(this, arguments, void 0, function* (to, content, maxRetries = 3) {
+            var _a, _b, _c;
+            if (!this.socket) {
+                throw new Error('Socket not initialized');
+            }
+            const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+            // Special handling for LID accounts with plain text - bypass MessageContent
+            if (typeof content === 'string' && jid.includes('@lid')) {
+                console.log(`[WhatsAppClient] Sending text to LID account using direct method`);
+                try {
+                    yield this.socket.sendMessage(jid, { text: content });
+                    console.log(`[WhatsAppClient] ✓ TEXT sent to ${jid}`);
+                    return;
+                }
+                catch (error) {
+                    console.error(`[WhatsAppClient] ✗ Error sending to LID account:`, error.message);
+                    throw error;
+                }
+            }
+            // Backwards compatibility: string = text message
+            const messageContent = typeof content === 'string' ? { type: 'text', text: content } : content;
+            let lastError = null;
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    // Build message payload based on type
+                    let messagePayload;
+                    switch (messageContent.type) {
+                        case 'text':
+                            messagePayload = { text: messageContent.text };
+                            break;
+                        case 'image':
+                            messagePayload = {
+                                image: { url: messageContent.url },
+                                caption: messageContent.caption,
+                            };
+                            break;
+                        case 'video':
+                            messagePayload = {
+                                video: { url: messageContent.url },
+                                caption: messageContent.caption,
+                            };
+                            break;
+                        case 'audio':
+                            messagePayload = {
+                                audio: { url: messageContent.url },
+                                ptt: (_a = messageContent.ptt) !== null && _a !== void 0 ? _a : false,
+                            };
+                            break;
+                        case 'document':
+                            messagePayload = {
+                                document: { url: messageContent.url },
+                                fileName: messageContent.fileName,
+                                mimetype: messageContent.mimetype || 'application/pdf',
+                            };
+                            break;
+                        case 'location':
+                            messagePayload = {
+                                location: {
+                                    degreesLatitude: messageContent.latitude,
+                                    degreesLongitude: messageContent.longitude,
+                                    name: messageContent.name,
+                                    address: messageContent.address,
+                                },
+                            };
+                            break;
+                        case 'contact':
+                            messagePayload = {
+                                contacts: {
+                                    displayName: 'Contact',
+                                    contacts: [{ vcard: messageContent.vcard }],
+                                },
+                            };
+                            break;
+                        case 'poll':
+                            messagePayload = {
+                                poll: {
+                                    name: messageContent.name,
+                                    values: messageContent.options,
+                                    selectableCount: messageContent.selectableCount || 1,
+                                },
+                            };
+                            break;
+                        case 'buttons':
+                            messagePayload = {
+                                text: messageContent.text,
+                                footer: messageContent.footer,
+                                buttons: messageContent.buttons.map((btn, idx) => ({
+                                    buttonId: btn.id,
+                                    buttonText: { displayText: btn.text },
+                                    type: 1,
+                                })),
+                            };
+                            break;
+                        case 'list':
+                            messagePayload = {
+                                text: messageContent.text,
+                                footer: messageContent.footer,
+                                buttonText: messageContent.buttonText,
+                                sections: messageContent.sections,
+                            };
+                            break;
+                        default:
+                            throw new Error(`Unsupported message type: ${messageContent.type}`);
+                    }
+                    yield this.socket.sendMessage(jid, messagePayload);
+                    const typeLabel = messageContent.type.toUpperCase();
+                    if (attempt > 1) {
+                        console.log(`[WhatsAppClient] ✓ ${typeLabel} sent to ${jid} (after ${attempt - 1} retries)`);
+                    }
+                    else {
+                        console.log(`[WhatsAppClient] ✓ ${typeLabel} sent to ${jid}`);
+                    }
+                    return;
+                }
+                catch (error) {
+                    lastError = error;
+                    const isSessionError = ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('SessionError')) || ((_c = error.message) === null || _c === void 0 ? void 0 : _c.includes('No sessions'));
+                    if (isSessionError && attempt < maxRetries) {
+                        const delayMs = Math.pow(2, attempt - 1) * 500;
+                        console.log(`[WhatsAppClient] Attempt ${attempt}/${maxRetries} failed. Retrying in ${delayMs}ms...`);
+                        yield new Promise((resolve) => setTimeout(resolve, delayMs));
+                        continue;
+                    }
+                    if (isSessionError) {
+                        console.error(`[WhatsAppClient] ✗ All ${maxRetries} attempts failed for ${jid}`);
+                        throw new Error(`Cannot send message to ${to}: Encryption session not established after ${maxRetries} attempts.`);
+                    }
+                    throw error;
+                }
+            }
+            throw lastError || new Error('Unknown error');
+        });
+    }
+    getSocket() {
+        return this.socket;
+    }
+    destroy() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.socket) {
+                try {
+                    this.socket.end(undefined);
+                }
+                catch (error) {
+                    console.error('Error closing socket:', error);
+                }
+                this.socket = null;
+            }
+        });
+    }
+}
+exports.WhatsAppClient = WhatsAppClient;
