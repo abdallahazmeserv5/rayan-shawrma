@@ -155,7 +155,8 @@ function createMessageWorker(senderManager, campaignManager, whatsappManager) {
         }
     }));
     worker.on('error', (error) => {
-        console.error(`Worker error: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Worker error: ${errorMessage}`);
     });
     console.log('✅ Message worker started');
     return worker;

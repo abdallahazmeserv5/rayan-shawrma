@@ -84,7 +84,7 @@ class WhatsAppManager {
                 this.flowExecutor.handleIncomingMessage(sessionId, msg.key.remoteJid || '', ((_a = msg.message) === null || _a === void 0 ? void 0 : _a.conversation) ||
                     ((_c = (_b = msg.message) === null || _b === void 0 ? void 0 : _b.extendedTextMessage) === null || _c === void 0 ? void 0 : _c.text) ||
                     ((_e = (_d = msg.message) === null || _d === void 0 ? void 0 : _d.imageMessage) === null || _e === void 0 ? void 0 : _e.caption) ||
-                    '');
+                    '', msg.key.fromMe || false);
                 // Call auto-reply service if configured
                 if (this.autoReplyService) {
                     const from = msg.key.remoteJid || '';
@@ -94,7 +94,7 @@ class WhatsAppManager {
                         '';
                     console.log(`\n🤖 ===== Auto-reply triggered =====`);
                     console.log(`📥 Message from ${from} on session: ${sessionId}`);
-                    this.autoReplyService.handleIncomingMessage(from, text, sessionId).catch((err) => {
+                    this.autoReplyService.handleIncomingMessage(sessionId, from, text).catch((err) => {
                         console.error('Auto-reply error:', err);
                     });
                 }

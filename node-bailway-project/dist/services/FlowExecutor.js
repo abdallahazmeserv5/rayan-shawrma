@@ -47,11 +47,11 @@ class FlowExecutor {
             console.warn('Email credentials not configured. EmailNode will not work.');
         }
     }
-    handleIncomingMessage(sessionId, from, text) {
-        return __awaiter(this, void 0, void 0, function* () {
+    handleIncomingMessage(sessionId_1, from_1, text_1) {
+        return __awaiter(this, arguments, void 0, function* (sessionId, from, text, fromMe = false) {
             var _a;
             const phoneNumber = from.replace('@s.whatsapp.net', '').replace('@lid', '');
-            console.log(`[FlowExecutor] Received message from ${phoneNumber}: "${text}" on session "${sessionId}"`);
+            console.log(`[FlowExecutor] Received message from ${phoneNumber}: "${text}" on session "${sessionId}" (fromMe: ${fromMe})`);
             // Determine the WhatsApp ID (keep the full JID for LID accounts)
             const whatsappId = from; // Store the full JID (e.g., 123@lid or 123@s.whatsapp.net)
             // Use findOneAndUpdate with upsert to avoid race conditions
@@ -87,8 +87,13 @@ class FlowExecutor {
             for (const flow of flows) {
                 console.log(`[FlowExecutor] Checking flow "${flow.name}" (type: ${flow.triggerType}, keywords: ${((_a = flow.keywords) === null || _a === void 0 ? void 0 : _a.join(', ')) || 'none'})`);
                 // For 'message' type: trigger on ANY message
+                // BUT: Don't trigger on bot's own messages (prevents infinite loop)
                 if (flow.triggerType === 'message') {
-                    console.log(`[FlowExecutor] ✓ Triggering flow "${flow.name}" (message trigger) for session "${sessionId}" (${phoneNumber})`);
+                    if (fromMe) {
+                        console.log(`[FlowExecutor] ⏸️ Skipping flow "${flow.name}" - message is from bot (avoiding loop)`);
+                        continue;
+                    }
+                    console.log(`[FlowExecutor] ✓ Triggering flow "${flow.name}\" (message trigger) for session "${sessionId}" (${phoneNumber})`);
                     yield this.startFlow(flow._id.toString(), contact._id.toString(), {
                         sessionId,
                         message: text,
@@ -158,6 +163,14 @@ class FlowExecutor {
                     case 'message':
                         yield this.handleMessageNode(node, execution, flow, contact);
                         break;
+                    case 'buttons':
+                        // Handle button messages (same as message but with interactive buttons)
+                        yield this.handleMessageNode(node, execution, flow, contact);
+                        break;
+                    case 'list':
+                        // Handle list messages (same as message but with interactive list)
+                        yield this.handleMessageNode(node, execution, flow, contact);
+                        break;
                     case 'condition':
                         yield this.handleConditionNode(node, execution, flow);
                         return;
@@ -171,8 +184,12 @@ class FlowExecutor {
                         yield this.handleEmailNode(node, execution);
                         break;
                 }
-                // Message nodes pause and wait for reply - don't auto-continue
-                if (node.type !== 'condition' && node.type !== 'delay' && node.type !== 'message') {
+                // Message, buttons, and list nodes pause and wait for reply - don't auto-continue
+                if (node.type !== 'condition' &&
+                    node.type !== 'delay' &&
+                    node.type !== 'message' &&
+                    node.type !== 'buttons' &&
+                    node.type !== 'list') {
                     const nextNodeId = this.getNextNodeId(flow, nodeId);
                     if (nextNodeId) {
                         execution.currentNodeId = nextNodeId;
@@ -195,7 +212,8 @@ class FlowExecutor {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             const sessionId = execution.variables.sessionId;
-            const messageType = node.data.messageType || 'text'; // Default to text for backwards compatibility
+            // Get message type from node.type (for buttons/list) or node.data.type (for regular messages)
+            const messageType = node.type === 'buttons' || node.type === 'list' ? node.type : node.data.messageType || 'text';
             console.log(`[FlowExecutor] MessageNode: nodeId=${node.id}, type=${messageType}, sessionId=${sessionId}`);
             if (!sessionId) {
                 console.warn('[FlowExecutor] No session ID found for execution', execution.id);
@@ -305,28 +323,85 @@ class FlowExecutor {
                     messageContent = { type: 'text', text: defaultText };
                     break;
             }
-            // Send the message
+            // Send the message with fallback support for interactive messages
             try {
                 // Use whatsappId if available (includes @lid or @s.whatsapp.net), otherwise fallback to phoneNumber
                 const recipient = contact.whatsappId || contact.phoneNumber;
-                // Check if this is a LID account (WhatsApp Channel)
-                if (recipient.includes('@lid')) {
-                    // LID accounts have issues with MessageContent objects - use old text-only method
+                const isLidAccount = recipient.includes('@lid');
+                // Helper function to convert interactive messages to text-based menu
+                const convertToTextMenu = (content) => {
+                    if (content.type === 'list') {
+                        let textMenu = content.text + '\n\n';
+                        content.sections.forEach((section, sectionIdx) => {
+                            if (section.title) {
+                                textMenu += `*${section.title}*\n`;
+                            }
+                            section.rows.forEach((row, rowIdx) => {
+                                const number = sectionIdx * 100 + rowIdx + 1;
+                                textMenu += `${number}. ${row.title}`;
+                                if (row.description) {
+                                    textMenu += ` - ${row.description}`;
+                                }
+                                textMenu += '\n';
+                            });
+                            textMenu += '\n';
+                        });
+                        if (content.footer) {
+                            textMenu += `_${content.footer}_`;
+                        }
+                        return textMenu;
+                    }
+                    else if (content.type === 'buttons') {
+                        let textMenu = content.text + '\n\n';
+                        content.buttons.forEach((btn, idx) => {
+                            textMenu += `${idx + 1}. ${btn.text}\n`;
+                        });
+                        if (content.footer) {
+                            textMenu += `\n_${content.footer}_`;
+                        }
+                        return textMenu;
+                    }
+                    return content.type === 'text' ? content.text : '';
+                };
+                // For LID accounts, always use text fallback for interactive messages
+                if (isLidAccount) {
                     if (messageContent.type === 'text') {
                         console.log(`[FlowExecutor] Sending text to LID account ${recipient} using legacy string method`);
-                        // Pass as string instead of MessageContent to avoid parsing issues
                         yield this.whatsappManager.sendMessage(sessionId, recipient, messageContent.text);
                         console.log(`[FlowExecutor] Text message sent successfully to ${recipient}`);
+                    }
+                    else if (messageContent.type === 'list' || messageContent.type === 'buttons') {
+                        console.log(`[FlowExecutor] 🔄 Converting ${messageContent.type} to text menu for LID account ${recipient}`);
+                        const textMenu = convertToTextMenu(messageContent);
+                        yield this.whatsappManager.sendMessage(sessionId, recipient, textMenu);
+                        console.log(`[FlowExecutor] ✓ Text menu sent successfully to LID account ${recipient}`);
                     }
                     else {
                         console.warn(`[FlowExecutor] ⚠️  Cannot send ${messageContent.type} message to LID account ${recipient}`);
                         console.warn(`[FlowExecutor] LID accounts only support text messages. Rich media requires regular WhatsApp accounts.`);
+                        return; // Skip this message for unsupported types
                     }
                 }
                 else {
-                    // Regular accounts support full MessageContent
-                    yield this.whatsappManager.sendMessage(sessionId, recipient, messageContent);
-                    console.log(`[FlowExecutor] Message sent successfully to ${recipient}`);
+                    // Regular accounts - try interactive message first, fallback to text if it fails
+                    try {
+                        yield this.whatsappManager.sendMessage(sessionId, recipient, messageContent);
+                        console.log(`[FlowExecutor] Message sent successfully to ${recipient}`);
+                    }
+                    catch (interactiveError) {
+                        // If interactive message fails and it's a list/button, try text fallback
+                        if (messageContent.type === 'list' || messageContent.type === 'buttons') {
+                            console.warn(`[FlowExecutor] ⚠️  Interactive ${messageContent.type} failed, falling back to text menu`);
+                            console.warn(`[FlowExecutor] Error: ${interactiveError.message}`);
+                            const textMenu = convertToTextMenu(messageContent);
+                            yield this.whatsappManager.sendMessage(sessionId, recipient, textMenu);
+                            console.log(`[FlowExecutor] ✓ Text menu fallback sent successfully to ${recipient}`);
+                        }
+                        else {
+                            // For other message types, re-throw the error
+                            throw interactiveError;
+                        }
+                    }
                 }
             }
             catch (error) {

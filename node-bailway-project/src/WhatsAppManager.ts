@@ -59,6 +59,7 @@ export class WhatsAppManager {
             msg.message?.extendedTextMessage?.text ||
             msg.message?.imageMessage?.caption ||
             '',
+          msg.key.fromMe || false, // Pass fromMe to prevent loop
         )
 
         // Call auto-reply service if configured
@@ -73,7 +74,7 @@ export class WhatsAppManager {
           console.log(`\n🤖 ===== Auto-reply triggered =====`)
           console.log(`📥 Message from ${from} on session: ${sessionId}`)
 
-          this.autoReplyService.handleIncomingMessage(from, text, sessionId).catch((err: any) => {
+          this.autoReplyService.handleIncomingMessage(sessionId, from, text).catch((err: any) => {
             console.error('Auto-reply error:', err)
           })
         }

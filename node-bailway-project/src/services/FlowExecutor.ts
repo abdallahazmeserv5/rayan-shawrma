@@ -39,10 +39,15 @@ export class FlowExecutor {
     }
   }
 
-  async handleIncomingMessage(sessionId: string, from: string, text: string) {
+  async handleIncomingMessage(
+    sessionId: string,
+    from: string,
+    text: string,
+    fromMe: boolean = false,
+  ) {
     const phoneNumber = from.replace('@s.whatsapp.net', '').replace('@lid', '')
     console.log(
-      `[FlowExecutor] Received message from ${phoneNumber}: "${text}" on session "${sessionId}"`,
+      `[FlowExecutor] Received message from ${phoneNumber}: "${text}" on session "${sessionId}" (fromMe: ${fromMe})`,
     )
 
     // Determine the WhatsApp ID (keep the full JID for LID accounts)
@@ -95,9 +100,17 @@ export class FlowExecutor {
       )
 
       // For 'message' type: trigger on ANY message
+      // BUT: Don't trigger on bot's own messages (prevents infinite loop)
       if (flow.triggerType === 'message') {
+        if (fromMe) {
+          console.log(
+            `[FlowExecutor] ⏸️ Skipping flow "${flow.name}" - message is from bot (avoiding loop)`,
+          )
+          continue
+        }
+
         console.log(
-          `[FlowExecutor] ✓ Triggering flow "${flow.name}" (message trigger) for session "${sessionId}" (${phoneNumber})`,
+          `[FlowExecutor] ✓ Triggering flow "${flow.name}\" (message trigger) for session "${sessionId}" (${phoneNumber})`,
         )
         await this.startFlow(flow._id.toString(), contact._id.toString(), {
           sessionId,
@@ -183,6 +196,14 @@ export class FlowExecutor {
         case 'message':
           await this.handleMessageNode(node, execution, flow, contact)
           break
+        case 'buttons':
+          // Handle button messages (same as message but with interactive buttons)
+          await this.handleMessageNode(node, execution, flow, contact)
+          break
+        case 'list':
+          // Handle list messages (same as message but with interactive list)
+          await this.handleMessageNode(node, execution, flow, contact)
+          break
         case 'condition':
           await this.handleConditionNode(node, execution, flow)
           return
@@ -197,8 +218,14 @@ export class FlowExecutor {
           break
       }
 
-      // Message nodes pause and wait for reply - don't auto-continue
-      if (node.type !== 'condition' && node.type !== 'delay' && node.type !== 'message') {
+      // Message, buttons, and list nodes pause and wait for reply - don't auto-continue
+      if (
+        node.type !== 'condition' &&
+        node.type !== 'delay' &&
+        node.type !== 'message' &&
+        node.type !== 'buttons' &&
+        node.type !== 'list'
+      ) {
         const nextNodeId = this.getNextNodeId(flow, nodeId)
         if (nextNodeId) {
           execution.currentNodeId = nextNodeId
@@ -215,9 +242,17 @@ export class FlowExecutor {
     }
   }
 
-  private async handleMessageNode(node: any, execution: any, flow: any, contact: any) {
+  private async handleMessageNode(
+    node: any,
+    execution: any,
+    flow: any,
+    contact: any,
+  ): Promise<void> {
     const sessionId = execution.variables.sessionId
-    const messageType = node.data.messageType || 'text' // Default to text for backwards compatibility
+
+    // Get message type from node.type (for buttons/list) or node.data.type (for regular messages)
+    const messageType =
+      node.type === 'buttons' || node.type === 'list' ? node.type : node.data.messageType || 'text'
 
     console.log(
       `[FlowExecutor] MessageNode: nodeId=${node.id}, type=${messageType}, sessionId=${sessionId}`,
@@ -350,21 +385,62 @@ export class FlowExecutor {
         break
     }
 
-    // Send the message
+    // Send the message with fallback support for interactive messages
     try {
       // Use whatsappId if available (includes @lid or @s.whatsapp.net), otherwise fallback to phoneNumber
       const recipient = contact.whatsappId || contact.phoneNumber
+      const isLidAccount = recipient.includes('@lid')
 
-      // Check if this is a LID account (WhatsApp Channel)
-      if (recipient.includes('@lid')) {
-        // LID accounts have issues with MessageContent objects - use old text-only method
+      // Helper function to convert interactive messages to text-based menu
+      const convertToTextMenu = (content: MessageContent): string => {
+        if (content.type === 'list') {
+          let textMenu = content.text + '\n\n'
+          content.sections.forEach((section: any, sectionIdx: number) => {
+            if (section.title) {
+              textMenu += `*${section.title}*\n`
+            }
+            section.rows.forEach((row: any, rowIdx: number) => {
+              const number = sectionIdx * 100 + rowIdx + 1
+              textMenu += `${number}. ${row.title}`
+              if (row.description) {
+                textMenu += ` - ${row.description}`
+              }
+              textMenu += '\n'
+            })
+            textMenu += '\n'
+          })
+          if (content.footer) {
+            textMenu += `_${content.footer}_`
+          }
+          return textMenu
+        } else if (content.type === 'buttons') {
+          let textMenu = content.text + '\n\n'
+          content.buttons.forEach((btn: any, idx: number) => {
+            textMenu += `${idx + 1}. ${btn.text}\n`
+          })
+          if (content.footer) {
+            textMenu += `\n_${content.footer}_`
+          }
+          return textMenu
+        }
+        return content.type === 'text' ? content.text : ''
+      }
+
+      // For LID accounts, always use text fallback for interactive messages
+      if (isLidAccount) {
         if (messageContent.type === 'text') {
           console.log(
             `[FlowExecutor] Sending text to LID account ${recipient} using legacy string method`,
           )
-          // Pass as string instead of MessageContent to avoid parsing issues
           await this.whatsappManager.sendMessage(sessionId, recipient, messageContent.text)
           console.log(`[FlowExecutor] Text message sent successfully to ${recipient}`)
+        } else if (messageContent.type === 'list' || messageContent.type === 'buttons') {
+          console.log(
+            `[FlowExecutor] 🔄 Converting ${messageContent.type} to text menu for LID account ${recipient}`,
+          )
+          const textMenu = convertToTextMenu(messageContent)
+          await this.whatsappManager.sendMessage(sessionId, recipient, textMenu)
+          console.log(`[FlowExecutor] ✓ Text menu sent successfully to LID account ${recipient}`)
         } else {
           console.warn(
             `[FlowExecutor] ⚠️  Cannot send ${messageContent.type} message to LID account ${recipient}`,
@@ -372,11 +448,28 @@ export class FlowExecutor {
           console.warn(
             `[FlowExecutor] LID accounts only support text messages. Rich media requires regular WhatsApp accounts.`,
           )
+          return // Skip this message for unsupported types
         }
       } else {
-        // Regular accounts support full MessageContent
-        await this.whatsappManager.sendMessage(sessionId, recipient, messageContent)
-        console.log(`[FlowExecutor] Message sent successfully to ${recipient}`)
+        // Regular accounts - try interactive message first, fallback to text if it fails
+        try {
+          await this.whatsappManager.sendMessage(sessionId, recipient, messageContent)
+          console.log(`[FlowExecutor] Message sent successfully to ${recipient}`)
+        } catch (interactiveError: any) {
+          // If interactive message fails and it's a list/button, try text fallback
+          if (messageContent.type === 'list' || messageContent.type === 'buttons') {
+            console.warn(
+              `[FlowExecutor] ⚠️  Interactive ${messageContent.type} failed, falling back to text menu`,
+            )
+            console.warn(`[FlowExecutor] Error: ${interactiveError.message}`)
+            const textMenu = convertToTextMenu(messageContent)
+            await this.whatsappManager.sendMessage(sessionId, recipient, textMenu)
+            console.log(`[FlowExecutor] ✓ Text menu fallback sent successfully to ${recipient}`)
+          } else {
+            // For other message types, re-throw the error
+            throw interactiveError
+          }
+        }
       }
     } catch (error: any) {
       console.error(`[FlowExecutor] Error sending message:`, error)
