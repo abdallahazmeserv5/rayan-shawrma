@@ -503,7 +503,19 @@ export class FlowExecutor {
    * Resume a paused flow execution when the user sends a reply
    */
   async resumeFlow(executionId: string, userMessage: string, sessionId: string) {
-    const execution = await FlowExecution.findById(executionId)
+    // Use findByIdAndUpdate with { new: true } to ensure atomic update and return updated document
+    const execution = await FlowExecution.findByIdAndUpdate(
+      executionId,
+      {
+        $set: {
+          'variables.message': userMessage,
+          'variables.sessionId': sessionId,
+          status: 'running',
+        },
+      },
+      { new: true }, // Return the updated document
+    )
+
     if (!execution) {
       console.log(`[FlowExecutor] Execution ${executionId} not found`)
       return false // Allow checking for new flows
@@ -520,13 +532,9 @@ export class FlowExecutor {
       return false // Allow checking for new flows
     }
 
-    console.log(`[FlowExecutor] Resuming flow execution ${executionId}`)
-
-    // Store the user's reply in variables for condition nodes
-    execution.variables.message = userMessage
-    execution.variables.sessionId = sessionId // Ensure sessionId is up-to-date
-    execution.status = 'running'
-    await execution.save()
+    console.log(
+      `[FlowExecutor] Resuming flow execution ${executionId} with message: "${userMessage}"`,
+    )
 
     // Continue to the next node
     const nextNodeId = this.getNextNodeId(flow, execution.currentNodeId)

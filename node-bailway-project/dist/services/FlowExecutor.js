@@ -438,7 +438,14 @@ class FlowExecutor {
      */
     resumeFlow(executionId, userMessage, sessionId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const execution = yield FlowExecution_1.FlowExecution.findById(executionId);
+            // Use findByIdAndUpdate with { new: true } to ensure atomic update and return updated document
+            const execution = yield FlowExecution_1.FlowExecution.findByIdAndUpdate(executionId, {
+                $set: {
+                    'variables.message': userMessage,
+                    'variables.sessionId': sessionId,
+                    status: 'running',
+                },
+            }, { new: true });
             if (!execution) {
                 console.log(`[FlowExecutor] Execution ${executionId} not found`);
                 return false; // Allow checking for new flows
@@ -451,12 +458,7 @@ class FlowExecutor {
                 yield execution.save();
                 return false; // Allow checking for new flows
             }
-            console.log(`[FlowExecutor] Resuming flow execution ${executionId}`);
-            // Store the user's reply in variables for condition nodes
-            execution.variables.message = userMessage;
-            execution.variables.sessionId = sessionId; // Ensure sessionId is up-to-date
-            execution.status = 'running';
-            yield execution.save();
+            console.log(`[FlowExecutor] Resuming flow execution ${executionId} with message: "${userMessage}"`);
             // Continue to the next node
             const nextNodeId = this.getNextNodeId(flow, execution.currentNodeId);
             if (nextNodeId) {
