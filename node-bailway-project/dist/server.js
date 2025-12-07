@@ -306,6 +306,24 @@ app.post('/api/sessions/:sessionId/reconnect', (req, res) => __awaiter(void 0, v
         res.status(500).json({ error: error.message });
     }
 }));
+// Get first active session (for order confirmations, etc.)
+app.get('/session/active', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { getFirstActiveSession } = yield Promise.resolve().then(() => __importStar(require('./services/get-active-session')));
+        const sessionId = yield getFirstActiveSession();
+        if (!sessionId) {
+            return res.status(404).json({
+                error: 'No active session found',
+                sessionId: null,
+            });
+        }
+        res.json({ sessionId });
+    }
+    catch (error) {
+        console.error('Error getting active session:', error);
+        res.status(500).json({ error: error.message });
+    }
+}));
 app.post('/message/send', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { sessionId, to, text } = req.body;
     if (!sessionId || !to || !text) {

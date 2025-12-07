@@ -4,7 +4,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { getCustomerByPhone } from './customers.actions'
 import { getStoreSettingsInternal } from './settings.actions'
-import { sendMessageAPI } from '@/services/send-message'
+import { sendMessageAPI, getActiveSession } from '@/services/send-message'
 
 interface QuickCheckoutItem {
   productId: string
@@ -159,11 +159,20 @@ ${locationAddress}
 🙏 نشكرك على ثقتك بنا!`
 
       // Send WhatsApp message
-      await sendMessageAPI({
-        to: customer.phone,
-        text: confirmationMessage,
-        sessionId: 'wqwe',
-      })
+      const activeSession = await getActiveSession()
+
+      if (!activeSession) {
+        console.error('No active WhatsApp session found for order confirmation')
+        console.error('Order created successfully, but WhatsApp message could not be sent')
+        // Order is still created successfully, just no WhatsApp message sent
+      } else {
+        console.log(`Sending order confirmation via session: ${activeSession}`)
+        await sendMessageAPI({
+          to: customer.phone,
+          text: confirmationMessage,
+          sessionId: activeSession,
+        })
+      }
     } catch (messageError) {
       // Log error but don't fail the order
       console.error('Failed to send WhatsApp confirmation:', messageError)

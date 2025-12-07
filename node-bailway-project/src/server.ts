@@ -305,6 +305,26 @@ app.post('/api/sessions/:sessionId/reconnect', async (req, res) => {
   }
 })
 
+// Get first active session (for order confirmations, etc.)
+app.get('/session/active', async (req, res) => {
+  try {
+    const { getFirstActiveSession } = await import('./services/get-active-session')
+    const sessionId = await getFirstActiveSession()
+
+    if (!sessionId) {
+      return res.status(404).json({
+        error: 'No active session found',
+        sessionId: null,
+      })
+    }
+
+    res.json({ sessionId })
+  } catch (error: any) {
+    console.error('Error getting active session:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 app.post('/message/send', async (req, res) => {
   const { sessionId, to, text } = req.body
 

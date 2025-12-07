@@ -129,3 +129,30 @@ export async function sendMessageAPI(data: { to: string; text: string; sessionId
 
   return res.json()
 }
+
+/**
+ * Get the first active WhatsApp session
+ * @returns Session ID of the first active session, or null if none found
+ */
+export async function getActiveSession(): Promise<string | null> {
+  try {
+    const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+    const res = await fetch(`${whatsappServiceUrl}/session/active`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!res.ok) {
+      console.error('Failed to get active session')
+      return null
+    }
+
+    const data = await res.json()
+    return data.sessionId || null
+  } catch (error) {
+    console.error('Error getting active session:', error)
+    return null
+  }
+}
