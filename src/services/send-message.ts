@@ -113,7 +113,7 @@ export async function baseFetch({
 // }
 
 export async function sendMessageAPI(data: { to: string; text: string; sessionId: string }) {
-  const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+  const whatsappServiceUrl = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
   const res = await fetch(`${whatsappServiceUrl}/message/send`, {
     method: 'POST',
     headers: {
@@ -136,7 +136,8 @@ export async function sendMessageAPI(data: { to: string; text: string; sessionId
  */
 export async function getActiveSession(): Promise<string | null> {
   try {
-    const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+    const whatsappServiceUrl =
+      process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
     const res = await fetch(`${whatsappServiceUrl}/session/active`, {
       method: 'GET',
       headers: {

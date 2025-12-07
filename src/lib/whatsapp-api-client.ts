@@ -3,7 +3,7 @@
  * Communicates with the Express WhatsApp service
  */
 
-const WHATSAPP_SERVICE_URL = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3001'
+const WHATSAPP_SERVICE_URL = process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
 
 export interface SendMessageResult {
   success: boolean

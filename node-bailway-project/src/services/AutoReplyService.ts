@@ -67,7 +67,7 @@ export class AutoReplyService {
 
       console.log(`📤 Sending auto-reply via HTTP from ${sessionToUse} to ${to}`)
 
-      await axios.post('http://localhost:3001/message/send', {
+      await axios.post(`${process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL}/message/send`, {
         sessionId: sessionToUse,
         to: to,
         text: messageText,

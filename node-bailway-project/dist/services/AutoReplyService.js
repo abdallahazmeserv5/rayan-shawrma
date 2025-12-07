@@ -74,7 +74,7 @@ class AutoReplyService {
                 const to = from;
                 const messageText = this.config.messageContent;
                 console.log(`📤 Sending auto-reply via HTTP from ${sessionToUse} to ${to}`);
-                yield axios_1.default.post('http://localhost:3001/message/send', {
+                yield axios_1.default.post(`${process.env.NEXT_PUBLIC_WHATSAPP_SERVICE_URL}/message/send`, {
                     sessionId: sessionToUse,
                     to: to,
                     text: messageText,
